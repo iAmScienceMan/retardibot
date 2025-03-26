@@ -3,13 +3,39 @@
     "owner_id": 587208453018091538,
     "reaction": {
         "emoji_id": 1354437555784777901,
-        "emoji_fallback": "😳",
+        "emoji_fallback": "\u00f0\u0178\u02dc\u00b3",
         "trigger_words": [
-            "thighs", "sex", "penis", "thicc", "bonk", "horny", "seggs", 
-            "uwu", "mommy", "daddy", "submissive", "breedable", "breeding",
-            "juicy", "moist", "sus", "sussy", "down bad", "step-", "curves",
-            "frisky", "unhinged", "railed", "smash", "boinked", "badonkadonk",
-            "dripping", "flirting", "grinding", "cummy", "smashable"
+            "thighs",
+            "sex",
+            "penis",
+            "thicc",
+            "bonk",
+            "horny",
+            "seggs",
+            "uwu",
+            "mommy",
+            "daddy",
+            "submissive",
+            "breedable",
+            "breeding",
+            "juicy",
+            "moist",
+            "sus",
+            "sussy",
+            "down bad",
+            "step-",
+            "curves",
+            "frisky",
+            "unhinged",
+            "railed",
+            "smash",
+            "boinked",
+            "badonkadonk",
+            "dripping",
+            "flirting",
+            "grinding",
+            "cummy",
+            "smashable"
         ]
     },
     "logging": {
@@ -28,6 +54,12 @@
             "role_create": true,
             "role_delete": true,
             "voice_state_update": true
+        },
+        "guild_settings": {
+            "1351605814623866920": {
+                "ignored_users": [],
+                "ignored_channels": []
+            }
         }
     }
 }
