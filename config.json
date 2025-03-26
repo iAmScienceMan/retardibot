@@ -1,4 +1,33 @@
 {
     "prefix": "rb ",
-    "owner_id": 587208453018091538
+    "owner_id": 587208453018091538,
+    "reaction": {
+        "emoji_id": 1354437555784777901,
+        "emoji_fallback": "😳",
+        "trigger_words": [
+            "thighs", "sex", "penis", "thicc", "bonk", "horny", "seggs", 
+            "uwu", "mommy", "daddy", "submissive", "breedable", "breeding",
+            "juicy", "moist", "sus", "sussy", "down bad", "step-", "curves",
+            "frisky", "unhinged", "railed", "smash", "boinked", "badonkadonk",
+            "dripping", "flirting", "grinding", "cummy", "smashable"
+        ]
+    },
+    "logging": {
+        "enabled": true,
+        "log_channel_id": 1354478720181735434,
+        "ignored_channels": [],
+        "ignored_users": [],
+        "log_events": {
+            "message_delete": true,
+            "message_edit": true,
+            "member_join": true,
+            "member_leave": true,
+            "member_update": true,
+            "channel_create": true,
+            "channel_delete": true,
+            "role_create": true,
+            "role_delete": true,
+            "voice_state_update": true
+        }
+    }
 }
