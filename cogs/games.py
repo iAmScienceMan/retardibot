@@ -2,11 +2,26 @@ import disnake
 from disnake.ext import commands
 import random
 import asyncio
+import random
 
 class RussianRouletteCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.active_games = {}  # Store active game sessions
+
+    @commands.command()
+    @commands.is_owner()
+    async def crash(self, ctx):
+        """Crashes the bot."""
+        messages = [
+            "I regret nothing! Except trusting you with this command.",
+            "If I don't return... clear my browser history.",
+            "Byee!! Going to meet Clippy in the afterlife."
+        ]
+        
+        await ctx.send(random.choice(messages))
+        self.bot.dev_logger.critical("mischief.")
+        exit(1)
 
     @commands.command(aliases=["rr"])
     async def russianroulette(self, ctx, opponent: disnake.Member = None):

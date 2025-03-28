@@ -22,7 +22,8 @@ intents = disnake.Intents.all()
 bot = commands.Bot(
     command_prefix=config.get('prefix', 'rb '),
     intents=intents,
-    owner_id=config.get('owner_id', 0)
+    owner_id=config.get('owner_id', 0),
+    help_command=None
 )
 
 # Create a basic logger until the DevLogger cog initializes a better one

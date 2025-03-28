@@ -65,5 +65,10 @@
     "automod": {
         "mod_role_id": 1354483445769830550,
         "alert_channel_id": 1354484518903484457
+    },
+    "booster_roles": {
+    "anchor_role_id": 1354450838533181510,
+    "timeout_seconds": 300,
+    "dm_on_boost": true
     }
 }
