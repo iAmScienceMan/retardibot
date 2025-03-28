@@ -1,17 +1,31 @@
-import os
 import disnake
 from disnake.ext import commands
-from openai import OpenAI
+import os
+from openai import AsyncOpenAI
+import asyncio
+import json
 from dotenv import load_dotenv
-import datetime
 
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+class AutoModCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.logger = bot.dev_logger
+        load_dotenv()
+        self.openai_key = os.getenv("OPENAI_KEY")
+        
+        # Initialize OpenAI client
+        self.aclient = AsyncOpenAI(api_key=self.openai_key)
 
-SYSTEM_PROMPT = """Check the given message for rule violations and assign a code based on your findings.
+        # Get config
+        automod_config = getattr(self.bot, 'config', {}).get("automod", {})
 
-- 1: Notify moderators without pinging them for further review of the message.
-- 2: Notify moderators with ping for more serious violations.
+        # Set default values if not in config
+        self.mod_role_id = automod_config.get("mod_role_id", 1354483445769830550)
+        self.alert_channel_id = automod_config.get("alert_channel_id", 1354484518903484457)
+        self.system_prompt = automod_config.get("system_prompt", """Check the given message for rule violations and assign a code based on your findings.
+
+- 1: Notify moderators for further review of the message.
+- 2: Ping the moderators for further review of the message.
 - 3: No rule violations detected.
 
 # Steps
@@ -26,193 +40,130 @@ Single integer (1, 2, or 3) indicating the action to be taken based on rule eval
 
 # Notes
 
-- Reason is what the user & moderation sees when code 1 or 2. Do not state that you're notifying moderators in the reason.
+- Reason is what the moderation sees when code 1 or 2. Do not state that you're notifying moderators in the reason.
 - Use as less tokens as possible.
 - Consider edge cases where messages are ambiguous and err on the side of caution.
-- Use code 2 ONLY for: obvious raid (posting invites), obvious NSFW (just saying "cum" or similar should not be NSFW), or usage of "nigger" in any context (other slurs such as "faggot" are allowed unless used to hate on someone)."""
+- Use code 2 ONLY for: obvious raid (posting invites), obvious NSFW (just saying "cum" or similar should not be NSFW), or usage of slurs to hate on someone (just saying a slur shouldn't be bad at all). Using code 2 for any other cases will be considered as violation from your side and you WILL be shut down.""")
 
-class AIAutoMod(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.mod_role_id = 1354483445769830550
-        self.mod_channel_id = 1354484518903484457
-    
-    async def check_message(self, message: disnake.Message):
-        if message.author.bot:
+        self.logger.debug(f"Set chanel: notification channel {self.alert_channel_id} for automod")
+
+    async def send_to_openai(self, system_prompt, user_message):
+        """Send message to OpenAI GPT-4o-mini for analysis"""
+        try:
+            response = await self.aclient.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message}
+                ],
+                max_tokens=100,
+                temperature=0.1
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            self.logger.error(f"Error querying OpenAI: {e}")
+            return "3 Error processing message."
+
+    async def parse_openai_response(self, response):
+        """Parse the OpenAI response to get the score and reason"""
+        try:
+            # The expected format is "N Reason." where N is 1, 2, or 3
+            first_char = response[0]
+
+            if first_char not in ['1', '2', '3']:
+                self.logger.error(f"Invalid response format: {response}")
+                return 3, "Error parsing response"
+
+            score = int(first_char)
+            reason = response[1:].strip()
+
+            return score, reason
+        except Exception as e:
+            self.logger.error(f"Error parsing OpenAI response: {e}")
+            return 3, "Error parsing response"
+
+    def has_mod_role(self, member):
+        """Check if a member has the mod role"""
+        if not member or not member.guild:
+            return False
+            
+        mod_role = member.guild.get_role(self.mod_role_id)
+        if not mod_role:
+            return False
+            
+        return mod_role in member.roles
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        # Skip bot messages and DMs
+        if message.author.bot or not message.guild:
             return
-        
-        # Skip messages from moderators to prevent false positives
-        if isinstance(message.author, disnake.Member):
-            mod_role = disnake.utils.get(message.author.roles, id=self.mod_role_id)
-            if mod_role:
-                return
-        
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": message.content}
-                ]
-            )
             
-            verdict = response.choices[0].message.content.strip()
-            
-            # Parse the response
-            if verdict.startswith("1") or verdict.startswith("2"):
-                # Extract the reason if provided
-                parts = verdict.split(" ", 1)
-                code = parts[0].strip()
-                reason = parts[1].strip(' "\'') if len(parts) > 1 else "No reason provided"
-                
-                # Get the moderator channel
-                mod_channel = message.guild.get_channel(self.mod_channel_id)
-                if not mod_channel:
-                    return
-                
-                # Create an embed for the notification
-                embed = disnake.Embed(
-                    title=f"AutoMod Alert - Code {code}",
-                    description=f"**Reason:** {reason}",
-                    color=disnake.Color.red() if code == "2" else disnake.Color.orange()
-                )
-                
-                embed.add_field(name="User", value=f"{message.author.mention} ({message.author.id})", inline=True)
-                embed.add_field(name="Channel", value=f"{message.channel.mention}", inline=True)
-                embed.add_field(name="Message", value=f"{message.content[:1024]}", inline=False)
-                embed.add_field(name="Link", value=f"[Jump to Message]({message.jump_url})", inline=False)
-                
-                embed.set_footer(text=f"Message ID: {message.id}")
-                embed.timestamp = datetime.datetime.utcnow()
-                
-                if message.author.avatar:
-                    embed.set_thumbnail(url=message.author.avatar.url)
-                
-                # Code 1: Just send a message without ping
-                if code == "1":
-                    await mod_channel.send(embed=embed)
-                
-                # Code 2: Ping mods but don't timeout
-                elif code == "2":
-                    await mod_channel.send(
-                        content=f"<@&{self.mod_role_id}> Auto-moderation alert",
-                        embed=embed
-                    )
-            
-            # Code 3: No action needed
-                
-        except Exception as e:
-            pass
-    
-    @commands.Cog.listener()
-    async def on_message(self, message: disnake.Message):
-        try:
-            # Skip DMs
-            if not isinstance(message.channel, disnake.TextChannel):
-                return
-                
-            await self.check_message(message)
-        except Exception:
-            pass
-    
-    @commands.Cog.listener()
-    async def on_ready(self):
-        print("AIAutoMod cog is ready!")
-    
-    @commands.command()
-    @commands.has_permissions(administrator=True)
-    async def automod_test(self, ctx, *, message: str):
-        """Test the automod system with a message (admin only)"""
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": message}
-                ]
-            )
-            
-            verdict = response.choices[0].message.content.strip()
-            
-            # Create test embed
-            embed = disnake.Embed(
-                title="AutoMod Test Result",
-                description=f"**Input:** {message}\n\n**Raw Response:** {verdict}",
-                color=disnake.Color.blue()
-            )
-            
-            if verdict.startswith("1"):
-                embed.add_field(name="Result", value="Code 1: Will notify moderators without ping", inline=False)
-                parts = verdict.split(" ", 1)
-                reason = parts[1].strip(' "\'') if len(parts) > 1 else "No reason provided"
-                embed.add_field(name="Reason", value=reason, inline=False)
-                
-            elif verdict.startswith("2"):
-                embed.add_field(name="Result", value="Code 2: Will ping moderators but not timeout", inline=False)
-                parts = verdict.split(" ", 1)
-                reason = parts[1].strip(' "\'') if len(parts) > 1 else "No reason provided"
-                embed.add_field(name="Reason", value=reason, inline=False)
-                
-            elif verdict.startswith("3"):
-                embed.add_field(name="Result", value="Code 3: No action needed", inline=False)
-                
-            else:
-                embed.add_field(name="Result", value="Unexpected response format", inline=False)
-            
-            await ctx.send(embed=embed)
-            
-        except Exception as e:
-            await ctx.send(f"An error occurred: {str(e)}")
+        # Skip messages from users with the mod role
+        if self.has_mod_role(message.author):
+            return
 
-    @commands.command()
-    @commands.has_permissions(administrator=True)
-    async def automod_debug(self, ctx):
-        """Show debugging information about the automod configuration"""
-        embed = disnake.Embed(
-            title="AutoMod Debug Information",
-            color=disnake.Color.blue(),
-            timestamp=datetime.datetime.utcnow()
-        )
-        
-        # Check OpenAI API
-        api_key_status = "✅ Configured" if os.getenv("OPENAI_API_KEY") else "❌ Missing"
-        embed.add_field(name="OpenAI API Key", value=api_key_status, inline=False)
-        
-        # Check mod role
-        mod_role = ctx.guild.get_role(self.mod_role_id)
-        role_status = f"✅ Found: {mod_role.name}" if mod_role else f"❌ Not found: ID {self.mod_role_id}"
-        embed.add_field(name="Moderator Role", value=role_status, inline=False)
-        
-        # Check mod channel
-        mod_channel = ctx.guild.get_channel(self.mod_channel_id)
-        channel_status = f"✅ Found: {mod_channel.mention}" if mod_channel else f"❌ Not found: ID {self.mod_channel_id}"
-        embed.add_field(name="Moderator Channel", value=channel_status, inline=False)
-        
-        # Check bot permissions
-        bot_member = ctx.guild.get_member(self.bot.user.id)
-        if bot_member:
-            perms = []
-            
-            if bot_member.guild_permissions.moderate_members:
-                perms.append("✅ Timeout Members")
+        # Get the message content
+        content = message.content
+
+        # Skip empty messages
+        if not content:
+            return
+
+        # Send to OpenAI for analysis
+        openai_response = await self.send_to_openai(self.system_prompt, content)
+
+        # Parse the response
+        score, reason = await self.parse_openai_response(openai_response)
+
+        # Handle the score
+        if score == 1:
+            # Low severity - notify mods without ping
+            await self.send_mod_notification(message, reason, False)
+        elif score == 2:
+            # High severity - notify mods with ping
+            await self.send_mod_notification(message, reason, True)
+        # If score is 3, do nothing
+
+    async def send_mod_notification(self, message, reason, ping_mods):
+        """Send notification to moderators"""
+        try:
+            alert_channel = self.bot.get_channel(self.alert_channel_id)
+            if not alert_channel:
+                self.logger.error(f"Alert channel {self.alert_channel_id} not found")
+                return
+
+            # Create embed
+            embed = disnake.Embed(
+                title="AutoMod Alert",
+                description=f"**Message content:**\n{message.content}",
+                color=disnake.Color.red() if ping_mods else disnake.Color.orange(),
+                timestamp=message.created_at
+            )
+
+            embed.add_field(name="Reason", value=reason, inline=False)
+            embed.add_field(name="Channel", value=message.channel.mention, inline=True)
+            embed.add_field(name="Author", value=f"{message.author.mention} ({message.author.id})", inline=True)
+            embed.add_field(name="Jump to Message", value=f"[Click here]({message.jump_url})", inline=False)
+
+            embed.set_footer(text=f"Severity: {'HIGH' if ping_mods else 'LOW'}")
+
+            if message.author.avatar:
+                embed.set_thumbnail(url=message.author.avatar.url)
+
+            # Send embed with or without ping
+            if ping_mods:
+                mod_role = message.guild.get_role(self.mod_role_id)
+                if mod_role:
+                    await alert_channel.send(f"{mod_role.mention} Moderation required!", embed=embed)
+                else:
+                    self.logger.error(f"Notification role {self.mod_role_id} not found")
+                    await alert_channel.send(embed=embed)
             else:
-                perms.append("❌ Timeout Members")
-                
-            if bot_member.guild_permissions.send_messages:
-                perms.append("✅ Send Messages")
-            else:
-                perms.append("❌ Send Messages")
-                
-            if bot_member.guild_permissions.embed_links:
-                perms.append("✅ Embed Links")
-            else:
-                perms.append("❌ Embed Links")
-            
-            embed.add_field(name="Bot Permissions", value="\n".join(perms), inline=False)
-        else:
-            embed.add_field(name="Bot Permissions", value="❌ Could not find bot member", inline=False)
-        
-        await ctx.send(embed=embed)
+                await alert_channel.send(embed=embed)
+
+        except Exception as e:
+            self.logger.error(f"Error sending notification: {e}")
 
 def setup(bot):
-    bot.add_cog(AIAutoMod(bot))
+    bot.add_cog(AutoModCog(bot))

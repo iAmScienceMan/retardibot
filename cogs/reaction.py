@@ -1,17 +1,17 @@
-# cogs/reaction_cog.py
 import disnake
 from disnake.ext import commands
 
 class ReactionCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.logger = bot.dev_logger
         
         reaction_config = getattr(self.bot, 'config', {}).get("reaction", {})
         self.trigger_words = reaction_config.get("trigger_words", [])
         self.emoji_id = reaction_config.get("emoji_id")
         self.emoji_fallback = reaction_config.get("emoji_fallback", "😳")
         
-        print(f"Reaction Cog loaded with {len(self.trigger_words)} trigger words")
+        self.logger.info(f"Reaction cog has {len(self.trigger_words)} trigger words")
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -33,7 +33,7 @@ class ReactionCog(commands.Cog):
                                 emoji = found_emoji
                                 break
                     except (ValueError, TypeError) as e:
-                        print(f"Error processing emoji ID: {e}")
+                        self.logger.error(f"Error processing emoji ID: {e}")
                 
                 if emoji:
                     await message.add_reaction(emoji)
@@ -41,7 +41,7 @@ class ReactionCog(commands.Cog):
                     await message.add_reaction(self.emoji_fallback)
                     
             except Exception as e:
-                print(f"Failed to add reaction: {e}")
+                self.logger.error(f"Failed to add reaction: {e}")
 
 def setup(bot):
     bot.add_cog(ReactionCog(bot))

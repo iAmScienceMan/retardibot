@@ -10,6 +10,7 @@ from typing import Optional, Union
 class LoggingCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.logger = bot.dev_logger
         self.db_path = "logs.db"
         self._create_tables()
 
@@ -34,8 +35,8 @@ class LoggingCog(commands.Cog):
             "voice_state_update": True
         })
 
-        print(
-            f"Logging Cog initialized - Logging {'enabled' if self.enabled else 'disabled'}")
+        self.logger.info(
+            f"Discord Logging is {'enabled' if self.enabled else 'disabled'}")
 
     def _create_tables(self):
         """Create the necessary database tables if they don't exist"""
@@ -219,7 +220,7 @@ class LoggingCog(commands.Cog):
             conn.commit()
             return True
         except Exception as e:
-            print(f"Error logging to database: {e}")
+            self.logger.error(f"Error logging to database: {e}")
             conn.rollback()
             return False
         finally:
@@ -1229,7 +1230,7 @@ class LoggingCog(commands.Cog):
             with open("config.json", 'w') as f:
                 json.dump(main_config, f, indent=4)
         except Exception as e:
-            print(f"Error saving config: {e}")
+            self.logger.error(f"Error saving config: {e}")
 
         # Update the bot's config
         self.bot.config = main_config
