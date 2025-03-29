@@ -48,14 +48,39 @@ bot.config = config
 
 @bot.event
 async def on_ready():
-    activity = disnake.Activity(
-        type=disnake.ActivityType.watching,
-        name="you"
-    )
-    await bot.change_presence(activity=activity)
-
     bot.dev_logger.info(f"Logged in as {bot.user} (ID: {bot.user.id})")
     bot.dev_logger.info(f"Connected to {len(bot.guilds)} guilds")
+    
+    # Set bot status from config
+    if hasattr(bot, 'config') and 'bot_settings' in bot.config:
+        bot_settings = bot.config['bot_settings']
+        status_type = bot_settings.get('status_type', 'watching')
+        status_text = bot_settings.get('status_text', 'you')
+        status_state = bot_settings.get('status_state', 'online')
+        
+        activity = None
+        if status_text:
+            if status_type.lower() == "playing":
+                activity = disnake.Game(name=status_text)
+            elif status_type.lower() == "watching":
+                activity = disnake.Activity(type=disnake.ActivityType.watching, name=status_text)
+            elif status_type.lower() == "listening":
+                activity = disnake.Activity(type=disnake.ActivityType.listening, name=status_text)
+            elif status_type.lower() == "streaming":
+                activity = disnake.Streaming(name=status_text, url="https://www.twitch.tv/directory")
+            elif status_type.lower() == "competing":
+                activity = disnake.Activity(type=disnake.ActivityType.competing, name=status_text)
+        
+        presence = disnake.Status.online
+        if status_state.lower() == "idle":
+            presence = disnake.Status.idle
+        elif status_state.lower() == "dnd":
+            presence = disnake.Status.dnd
+        elif status_state.lower() == "invisible":
+            presence = disnake.Status.invisible
+            
+        await bot.change_presence(activity=activity, status=presence)
+        bot.dev_logger.info(f"Set bot status to {status_type}: {status_text} ({status_state})")
 
 @bot.event
 async def on_command_error(ctx, error):
