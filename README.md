@@ -1,6 +1,6 @@
 ﻿# 🤖 RetardiBot
 
-> *The intelligent companion for Femboy Retardia - where utility meets AI-powered shenanigans!*
+> *The intelligent companion for Retard Land - where utility meets AI-powered shenanigans!*
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Disnake](https://img.shields.io/badge/discord-disnake-blue.svg)](https://docs.disnake.dev/)
@@ -10,7 +10,7 @@
 
 ## 🌟 What is RetardiBot?
 
-RetardiBot is a feature-rich Discord bot designed specifically for the "Femboy Retardia" server. Combining practical utilities with advanced AI capabilities, it enhances server interactions while keeping things fun and engaging.
+RetardiBot is a feature-rich Discord bot designed specifically for the "Retard Land" server. Combining practical utilities with advanced AI capabilities, it enhances server interactions while keeping things fun and engaging.
 
 ## ✨ Features
 
@@ -67,7 +67,7 @@ RetardiBot is a feature-rich Discord bot designed specifically for the "Femboy R
 >     return "Feel free to contribute!"
 > ```
 > 
-> Check the [issues](https://github.com/iAmScienceMan/retardibot/issues) to contribute or join our community [Discord](https://discord.gg/4SYqgGVP2s)!
+> Check the [issues](https://github.com/iAmScienceMan/retardibot/issues) to contribute!
 
 ## 🤝 Contributing
 
@@ -98,11 +98,7 @@ Contributions are what make the community awesome! Here's how you can help:
 
 This project is licensed under the GNU Affero General Public License v3 - see the [LICENSE](LICENSE) file for details.
 
-## 🚀 Support & Community
-
-Join our community server: [Discord Invite Link](https://discord.gg/bM5dKU8Qk9)
-
 ---
 
-<p align="center">Made with 💖 for Femboy Retardia</p>
+<p align="center">Made with 💖 for Retard Land</p>
 <p align="center">© 2025 iAmScienceMan</p>
