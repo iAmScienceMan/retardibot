@@ -1,8 +1,8 @@
 {
     "prefix": "rb ",
-    "owner_id": 587208453018091538,
+    "owner_id": 1334095036236959770,
     "reaction": {
-        "emoji_id": 1354437555784777901,
+        "emoji_id": 1349941832167194634,
         "emoji_fallback": "\u00f0\u0178\u02dc\u00b3",
         "trigger_words": [
             "thighs",
@@ -45,7 +45,7 @@
     },
     "logging": {
         "enabled": true,
-        "log_channel_id": 1354478720181735434,
+        "log_channel_id": 1342693547698294900,
         "ignored_channels": [],
         "ignored_users": [],
         "log_events": {
@@ -68,8 +68,8 @@
         }
     },
     "automod": {
-        "mod_role_id": 1354483445769830550,
-        "alert_channel_id": 1354484518903484457
+        "mod_role_id": 1351591557425533099,
+        "alert_channel_id": 1342693547698294903
     },
     "blacklist": {
         "000000000000000000": {
@@ -97,6 +97,5 @@
             "interval_hours": 24,
             "max_backups": 7
         }
-    },
-    "confession_channel_id": 1355495965615849535
+    }
 }
