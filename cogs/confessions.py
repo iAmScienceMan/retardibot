@@ -1,4 +1,3 @@
-# cogs/confessions.py
 import disnake
 from disnake.ext import commands
 import sqlite3

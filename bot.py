@@ -5,6 +5,15 @@ import os
 from dotenv import load_dotenv
 import logging
 
+
+"""
+retardibot - A Long-Term Support Discord bot
+Copyright (C) 2025 iAmScienceMan
+Licensed under AGPLv3 - see LICENSE file for details.
+Unauthorized removal of this notice violates licensing terms.
+"""
+
+
 # Load environment variables
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
@@ -39,6 +48,12 @@ bot.config = config
 
 @bot.event
 async def on_ready():
+    activity = disnake.Activity(
+        type=disnake.ActivityType.watching,
+        name="you"
+    )
+    await bot.change_presence(activity=activity)
+
     bot.dev_logger.info(f"Logged in as {bot.user} (ID: {bot.user.id})")
     bot.dev_logger.info(f"Connected to {len(bot.guilds)} guilds")
 
@@ -50,14 +65,36 @@ async def on_command_error(ctx, error):
     error_msg = str(error)
     
     if isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(f"Missing required argument: {error.param.name}")
+        bot.dev_logger.warning(f"Missing argument: {error.param.name} in command {ctx.command} by {ctx.author}")
     elif isinstance(error, commands.BadArgument):
-        await ctx.send(f"Bad argument: {error_msg}")
+        bot.dev_logger.warning(f"Bad argument in {ctx.command} by {ctx.author}: {error_msg}")
     elif isinstance(error, commands.CommandOnCooldown):
-        await ctx.send(f"Command on cooldown. Try again in {error.retry_after:.2f}s")
+        bot.dev_logger.debug(f"Command {ctx.command} on cooldown for {ctx.author}: {error.retry_after:.2f}s")
+    elif isinstance(error, commands.CheckFailure):
+        bot.dev_logger.info(f"Permission check failed for {ctx.author} on command {ctx.command}")
     else:
-        bot.dev_logger.error(f"Command error: {error_msg}", exc_info=error)
-        await ctx.send(f"An error occurred: {error_msg}")
+        bot.dev_logger.error(f"Command error in {ctx.command} by {ctx.author}: {error_msg}", exc_info=error)
+
+@bot.check
+async def blacklist_check(ctx):
+    """Global check - prevents blacklisted users from using commands"""
+    # Skip check for the bot owner
+    if await bot.is_owner(ctx.author):
+        return True
+        
+    # Get the blacklist from config
+    blacklist = getattr(bot, 'config', {}).get("blacklist", {})
+    
+    # Check if user is blacklisted
+    if str(ctx.author.id) in blacklist:
+        # Optionally log the attempt
+        bot.dev_logger.info(f"Blocked command from blacklisted user {ctx.author} ({ctx.author.id})")
+        
+        # Silently fail - don't let them know they're blacklisted
+        return False
+        
+    # User not blacklisted, allow command
+    return True
 
 # Load all cogs
 def load_cogs():

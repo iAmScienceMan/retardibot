@@ -1,9 +1,9 @@
 [logging]
 # Global logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-level = "INFO"
+level = "DEBUG"
 
 # Console logging settings
-console_level = "INFO"
+console_level = "DEBUG"
 console_format = "%(log_color)s%(levelname)-8s%(reset)s | %(asctime)s | %(name)s | %(message)s"
 
 # File logging settings

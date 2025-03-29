@@ -146,7 +146,7 @@ class ModerationCog(commands.Cog):
         Duration format: 1d, 2h, 30m, 45s or combinations like 1d2h30m"""
         if ctx.author.top_role <= member.top_role:
             return await ctx.send("You cannot timeout this user due to role hierarchy.")
-            
+                
         # Parse duration
         total_seconds = 0
         current_num = ""
@@ -168,16 +168,17 @@ class ModerationCog(commands.Cog):
         
         if total_seconds == 0:
             return await ctx.send("Invalid duration format. Use combinations like: 1d, 2h, 30m, 45s")
-            
+                
         # Max timeout duration is 28 days
         if total_seconds > 2419200:
             total_seconds = 2419200
             
-        timeout_until = datetime.datetime.utcnow() + datetime.timedelta(seconds=total_seconds)
-        
         try:
-            # The correct way to call timeout in disnake
-            await member.edit(timeout=timeout_until, reason=reason)
+            # Use timedelta for the duration
+            duration_timedelta = datetime.timedelta(seconds=total_seconds)
+            
+            # Apply the timeout using the correct method
+            await member.timeout(duration=duration_timedelta, reason=reason)
             
             # Record the timeout in the database
             self._add_mod_action(ctx.guild.id, member.id, ctx.author.id, "TIMEOUT", reason, total_seconds)
@@ -210,10 +211,10 @@ class ModerationCog(commands.Cog):
     async def untimeout(self, ctx, member: disnake.Member, *, reason=None):
         """Remove timeout from a member"""
         try:
-            # The correct way to remove a timeout
-            await member.edit(timeout=None, reason=reason)
+            # Use the correct method to remove timeout
+            await member.timeout(duration=None, reason=reason)
             
-            # Record the untimeout in the database with the reason
+            # Record the untimeout in the database
             self._add_mod_action(ctx.guild.id, member.id, ctx.author.id, "UNTIMEOUT", reason)
             
             await ctx.send(f"✅ Timeout removed from **{member}**" + (f" | Reason: {reason}" if reason else ""))

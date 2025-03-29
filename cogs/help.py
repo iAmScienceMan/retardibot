@@ -231,6 +231,31 @@ class HelpCommand(commands.Cog):
         
         embed.set_footer(text=f"Use {self.bot.command_prefix}help for a list of all commands")
         return embed
+
+    @commands.command(name="about")
+    async def about_command(self, ctx):
+        """Shows information about the bot and its creator"""
+        embed = disnake.Embed(
+            title="About RetardiBot",
+            description="A Long-Term Support Discord bot for moderation, entertainment, and utility features.",
+            color=self.color,
+            timestamp=datetime.datetime.utcnow()
+        )
+        
+        embed.set_thumbnail(url=self.bot.user.display_avatar.url)
+        embed.add_field(name="Creator", value="iAmScienceMan", inline=True)
+        embed.add_field(name="Version", value="1.0.0", inline=True)
+        embed.add_field(name="Prefix", value=f"`{self.bot.command_prefix}`", inline=True)
+        
+        embed.add_field(
+            name="Features",
+            value="• Moderation tools\n• OpenAI ChatGPT integration\n• Utility commands\n• Fun reacting\n• Confession system",
+            inline=False
+        )
+        
+        embed.set_footer(text="Copyright © 2025 iAmScienceMan")
+        
+        await ctx.send(embed=embed)
     
     @commands.command(name="help")
     async def help_command(self, ctx, *, query: Optional[str] = None):

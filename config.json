@@ -7,7 +7,6 @@
         "trigger_words": [
             "thighs",
             "sex",
-            "penis",
             "thicc",
             "bonk",
             "horny",
@@ -25,6 +24,7 @@
             "down bad",
             "step-",
             "curves",
+            "curvy",
             "frisky",
             "unhinged",
             "railed",
@@ -35,7 +35,12 @@
             "flirting",
             "grinding",
             "cummy",
-            "smashable"
+            "smashable",
+            "dick",
+            "cock",
+            "penis",
+            "vagina",
+            "esex"
         ]
     },
     "logging": {
@@ -66,9 +71,31 @@
         "mod_role_id": 1354483445769830550,
         "alert_channel_id": 1354484518903484457
     },
-    "booster_roles": {
-    "anchor_role_id": 1354450838533181510,
-    "timeout_seconds": 300,
-    "dm_on_boost": true
+    "blacklist": {
+        "000000000000000000": {
+            "reason": "Example blacklisted user",
+            "added_by": 587208453018091538,
+            "timestamp": "2025-03-29T12:00:00"
+        }
+    },
+    "bot_settings": {
+        "status_type": "watching",
+        "status_text": "you",
+        "status_state": "online",
+        "maintenance_mode": false,
+        "description": "A Long-Term Support Discord bot created by iAmScienceMan",
+        "version": "1.0.0"
+    },
+    "owner_settings": {
+        "secret_triggers": [
+            "open sesame",
+            "abracadabra",
+            "sudo make me a sandwich"
+        ],
+        "auto_backup": {
+            "enabled": true,
+            "interval_hours": 24,
+            "max_backups": 7
+        }
     }
 }

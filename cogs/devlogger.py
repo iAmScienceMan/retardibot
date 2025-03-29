@@ -1,4 +1,3 @@
-# cogs/devlogger.py
 import disnake
 from disnake.ext import commands
 import logging
@@ -145,6 +144,7 @@ class DevLogger(commands.Cog):
     @commands.is_owner()
     async def logtest(self, ctx):
         """Test logging at different levels"""
+        self.logger.info("=== LOG TEST MESSAGES TRIGGERED ===")
         self.logger.debug("This is a DEBUG message")
         self.logger.info("This is an INFO message")
         self.logger.warning("This is a WARNING message")
