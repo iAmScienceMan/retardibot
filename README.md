@@ -6,7 +6,7 @@
 [![Disnake](https://img.shields.io/badge/discord-disnake-blue.svg)](https://docs.disnake.dev/)
 [![GPT-4o-mini](https://img.shields.io/badge/AI-GPT--4o--mini-green.svg)](https://platform.openai.com/docs/models/gpt-4o-mini)
 [![LTS](https://img.shields.io/badge/maintenance-LTS-green.svg)](https://github.com/iAmScienceMan/retardibot)
-[![License](https://img.shields.io/badge/license-CC%20BY--SA%204.0-lightgrey.svg)](LICENSE.txt)
+[![License](https://img.shields.io/badge/license-AGPLv3-lightgrey.svg)](LICENSE.txt)
 
 ## 🌟 What is RetardiBot?
 
@@ -96,7 +96,7 @@ Contributions are what make the community awesome! Here's how you can help:
 
 ## 📜 License
 
-This project is licensed under the Creative Commons Attribution-ShareAlike 4.0 International License - see the [LICENSE.txt](LICENSE.txt) file for details.
+This project is licensed under the GNU Affero General Public License v3 - see the [LICENSE](LICENSE) file for details.
 
 ## 🚀 Support & Community
 
