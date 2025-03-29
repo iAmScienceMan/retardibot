@@ -97,5 +97,6 @@
             "interval_hours": 24,
             "max_backups": 7
         }
-    }
+    },
+    "confession_channel_id": 1355495965615849535
 }
