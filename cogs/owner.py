@@ -51,6 +51,40 @@ class OwnerCog(commands.Cog, command_attrs=dict(hidden=True)):
         # Use Python to restart the bot
         python = sys.executable
         os.execl(python, python, *sys.argv)
+
+    @commands.command(name="loadfile")
+    @commands.is_owner()
+    async def load_file_as_cog(self, ctx):
+        """Loads an attached Python file as a cog"""
+        if not ctx.message.attachments:
+            return await ctx.send("❌ Please attach a Python file to load.")
+        
+        attachment = ctx.message.attachments[0]
+        if not attachment.filename.endswith('.py'):
+            return await ctx.send("❌ Please attach a Python (.py) file.")
+        
+        # Create cogs directory if it doesn't exist
+        os.makedirs("cogs", exist_ok=True)
+        
+        # Download the attachment
+        cog_path = f"cogs/{attachment.filename}"
+        await attachment.save(cog_path)
+        
+        # Get the cog name (filename without .py)
+        cog_name = f"cogs.{attachment.filename[:-3]}"
+        
+        try:
+            # Check if the load_extension method is a coroutine or not
+            if inspect.iscoroutinefunction(self.bot.load_extension):
+                await self.bot.load_extension(cog_name)
+            else:
+                self.bot.load_extension(cog_name)
+                
+            await ctx.send(f"✅ Successfully loaded `{cog_name}` from attachment.")
+            self.logger.info(f"Loaded cog from attachment: {cog_name}")
+        except Exception as e:
+            await ctx.send(f"❌ Failed to load `{cog_name}`: {type(e).__name__} - {e}")
+            self.logger.error(f"Failed to load cog {cog_name} from attachment: {e}", exc_info=True)
         
     @commands.command(name="load")
     @commands.is_owner()
@@ -59,7 +93,13 @@ class OwnerCog(commands.Cog, command_attrs=dict(hidden=True)):
         try:
             if not cog.startswith("cogs."):
                 cog = f"cogs.{cog}"
-            await self.bot.load_extension(cog)
+                
+            # Check if the load_extension method is a coroutine or not
+            if inspect.iscoroutinefunction(self.bot.load_extension):
+                await self.bot.load_extension(cog)
+            else:
+                self.bot.load_extension(cog)
+                
             await ctx.send(f"✅ Successfully loaded `{cog}`")
             self.logger.info(f"Loaded cog: {cog}")
         except Exception as e:
@@ -73,7 +113,13 @@ class OwnerCog(commands.Cog, command_attrs=dict(hidden=True)):
         try:
             if not cog.startswith("cogs."):
                 cog = f"cogs.{cog}"
-            await self.bot.unload_extension(cog)
+                
+            # Check if the unload_extension method is a coroutine or not
+            if inspect.iscoroutinefunction(self.bot.unload_extension):
+                await self.bot.unload_extension(cog)
+            else:
+                self.bot.unload_extension(cog)
+                
             await ctx.send(f"✅ Successfully unloaded `{cog}`")
             self.logger.info(f"Unloaded cog: {cog}")
         except Exception as e:
@@ -87,13 +133,19 @@ class OwnerCog(commands.Cog, command_attrs=dict(hidden=True)):
         try:
             if not cog.startswith("cogs."):
                 cog = f"cogs.{cog}"
-            await self.bot.reload_extension(cog)
+                
+            # Check if the reload_extension method is a coroutine or not
+            if inspect.iscoroutinefunction(self.bot.reload_extension):
+                await self.bot.reload_extension(cog)
+            else:
+                self.bot.reload_extension(cog)
+                
             await ctx.send(f"✅ Successfully reloaded `{cog}`")
             self.logger.info(f"Reloaded cog: {cog}")
         except Exception as e:
             await ctx.send(f"❌ Failed to reload `{cog}`: {type(e).__name__} - {e}")
             self.logger.error(f"Failed to reload cog {cog}: {e}", exc_info=True)
-            
+
     @commands.command(name="reloadall")
     @commands.is_owner()
     async def reload_all_cogs(self, ctx):
@@ -105,7 +157,12 @@ class OwnerCog(commands.Cog, command_attrs=dict(hidden=True)):
         
         for extension in list(self.bot.extensions):
             try:
-                await self.bot.reload_extension(extension)
+                # Check if the reload_extension method is a coroutine or not
+                if inspect.iscoroutinefunction(self.bot.reload_extension):
+                    await self.bot.reload_extension(extension)
+                else:
+                    self.bot.reload_extension(extension)
+                    
                 success.append(extension)
             except Exception as e:
                 failed[extension] = f"{type(e).__name__}: {e}"
