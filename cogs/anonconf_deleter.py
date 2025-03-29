@@ -1,28 +1,49 @@
 import disnake
 from disnake.ext import commands
-# This cog deletes all messages that are NOT confessions from the #anon-confessions channel.
 
 class MessageDeleter(commands.Cog):
+    """Ensures only confessions appear in the confessions channel"""
+    
     def __init__(self, bot):
         self.bot = bot
-        self.logger = bot.dev_logger
-        self.channel_id = 1355495965615849535  # The ID of the channel to monitor
-        self.bot_id = 1351602723283275807  # The bot's ID
+        self.logger = bot.dev_logger.getChild('message_deleter')
+        
+        # Get the confession channel ID from config if available
+        config = getattr(self.bot, 'config', {})
+        confession_config = getattr(self.bot.cogs.get('ConfessionsCog'), 'confession_channel_id', None)
+        
+        # Use the confession channel ID from ConfessionsCog if available, otherwise use hardcoded value
+        self.channel_id = confession_config or 1355495965615849535
+        
+        self.logger.info(f"Message deleter initialized for channel ID: {self.channel_id}")
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        # Skip messages from the bot itself
-        if message.author.id == self.bot_id:
+        # Skip messages from any bot
+        if message.author.bot:
             return
 
-        # Check if the message is in the specified channel
+        # Check if the message is in the monitored channel
         if message.channel.id == self.channel_id:
-            # Delete the message if it's not from the bot
             try:
+                # Delete the message and log it
                 await message.delete()
-                self.bot.dev_logger.info(f"Deleted message from {message.author} in channel {message.channel.name}")
+                self.logger.info(
+                    f"Deleted unauthorized message from {message.author} ({message.author.id}) in confessions channel"
+                )
+            except disnake.Forbidden:
+                self.logger.error(
+                    f"Missing permissions to delete message from {message.author.id} in channel {message.channel.id}"
+                )
+            except disnake.NotFound:
+                self.logger.warning(
+                    f"Message {message.id} was already deleted before I could remove it"
+                )
             except Exception as e:
-                self.bot.dev_logger.error(f"Failed to delete message: {e}")
+                self.logger.error(
+                    f"Failed to delete message from {message.author.id}: {str(e)}", 
+                    exc_info=True
+                )
 
 def setup(bot):
     bot.add_cog(MessageDeleter(bot))
