@@ -4,6 +4,7 @@ from disnake.ext import commands
 
 class MessageDeleter(commands.Cog):
     def __init__(self, bot):
+        self.logger = bot.dev_logger
         self.bot = bot
         self.channel_id = 1355495965615849535  # The ID of the channel to monitor
         self.bot_id = 1351602723283275807  # The bot's ID
