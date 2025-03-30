@@ -72,17 +72,25 @@ class GitUpdateCog(commands.Cog):
             os.makedirs(old_version_dir, exist_ok=True)
             
             # Copy current installation to old_version_dir (excluding large dirs like venv)
+            backup_successful = True
             for item in os.listdir(current_dir):
                 if item not in ['.git', '__pycache__', 'venv']:
                     src_path = os.path.join(current_dir, item)
                     dst_path = os.path.join(old_version_dir, item)
                     
-                    if os.path.isdir(src_path):
-                        self.logger.info(f"Copying directory {item} to backup")
-                        shutil.copytree(src_path, dst_path)
-                    else:
-                        self.logger.info(f"Copying file {item} to backup")
-                        shutil.copy2(src_path, dst_path)
+                    try:
+                        if os.path.isdir(src_path):
+                            self.logger.info(f"Copying directory {item} to backup")
+                            shutil.copytree(src_path, dst_path)
+                        else:
+                            self.logger.info(f"Copying file {item} to backup")
+                            shutil.copy2(src_path, dst_path)
+                    except Exception as e:
+                        self.logger.error(f"Error backing up {item}: {str(e)}")
+                        backup_successful = False
+            
+            if not backup_successful:
+                self.logger.warning("Some errors occurred during backup, but continuing with update")
             
             # Clone repo to update directory
             await msg.edit(content=f"🔄 Cloning repository from {self.repo_url}...")
@@ -138,13 +146,13 @@ class GitUpdateCog(commands.Cog):
                 # Clean up
                 shutil.rmtree(update_dir, ignore_errors=True)
                 return
+                
+            # Create restart script based on platform
+            restart_script_path = self._create_restart_script(update_dir, current_dir)
+            self.logger.info(f"Created restart script: {restart_script_path}")
             
             # Execute restart script that will terminate this instance and start from new location
             await msg.edit(content="✅ Update complete! Restarting bot from updated location...")
-            
-            # Create restart script based on platform
-            restart_script_path = self._create_restart_script(update_dir)
-            self.logger.info(f"Created restart script: {restart_script_path}")
             
             # Run the restart script
             self.logger.info("Executing restart script")
@@ -171,7 +179,7 @@ class GitUpdateCog(commands.Cog):
             # Clean up but leave the backup
             shutil.rmtree(update_dir, ignore_errors=True)
     
-    def _create_restart_script(self, update_dir):
+    def _create_restart_script(self, update_dir, current_dir):
         """Create a script that will restart the bot from the new location"""
         # Set path to the venv in home directory
         home_dir = os.path.expanduser("~")
@@ -199,6 +207,17 @@ class GitUpdateCog(commands.Cog):
                 f.write("Write-Host 'Waiting for current bot process to exit...'\n")
                 f.write("Start-Sleep -Seconds 5\n\n")
                 
+                # Remove old repository directory
+                f.write(f"Write-Host 'Removing old bot installation from {current_dir}...'\n")
+                f.write(f"if (Test-Path '{current_dir}') {{\n")
+                f.write(f"    try {{\n")
+                f.write(f"        Remove-Item -Path '{current_dir}' -Recurse -Force\n")
+                f.write(f"        Write-Host 'Old installation removed successfully'\n")
+                f.write(f"    }} catch {{\n")
+                f.write(f"        Write-Host 'Warning: Could not remove old installation: $_'\n")
+                f.write(f"    }}\n")
+                f.write(f"}}\n\n")
+                
                 # Change to the new directory
                 f.write(f"Set-Location -Path '{update_dir}'\n\n")
                 
@@ -225,6 +244,12 @@ class GitUpdateCog(commands.Cog):
                 # Allow time for the current process to exit
                 f.write("echo 'Waiting for current bot process to exit...'\n")
                 f.write("sleep 5\n\n")
+                
+                # Remove old repository directory
+                f.write(f"echo 'Removing old bot installation from {current_dir}...'\n")
+                f.write(f"if [ -d \"{current_dir}\" ]; then\n")
+                f.write(f"    rm -rf \"{current_dir}\" && echo 'Old installation removed successfully' || echo 'Warning: Could not remove old installation'\n")
+                f.write(f"fi\n\n")
                 
                 # Change to the new directory
                 f.write(f"cd {update_dir}\n\n")
