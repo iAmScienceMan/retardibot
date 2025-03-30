@@ -7,6 +7,7 @@ class ConfessionsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = bot.dev_logger
+        config = getattr(self.bot, 'config', {})
         self.confession_channel_id = config.get("confession_channel_id")
         self.db_path = "confessions.db"
         self._create_tables()
