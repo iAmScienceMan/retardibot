@@ -9,6 +9,7 @@ import glob
 import sys
 import platform
 import tempfile
+import datetime
 from pathlib import Path
 
 class GitUpdateCog(commands.Cog):
@@ -17,7 +18,7 @@ class GitUpdateCog(commands.Cog):
         self.logger = bot.dev_logger.getChild('gitupdate')
         self.repo_url = "https://github.com/iAmScienceMan/retardibot.git"
         self.branch = "main"
-        self.files_to_preserve = ['.env', 'config.json'] 
+        self.files_to_preserve = ['.env', 'config.json']
         # DB files will be detected dynamically
         
     @commands.command(name="git")
@@ -41,16 +42,47 @@ class GitUpdateCog(commands.Cog):
         # Set up directories
         current_dir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
         home_dir = os.path.expanduser("~")
+        
+        # Create old versions directory if it doesn't exist
+        old_versions_dir = os.path.join(home_dir, "old")
+        os.makedirs(old_versions_dir, exist_ok=True)
+        
+        # Generate timestamp for old version
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        old_version_dir = os.path.join(old_versions_dir, f"retardibot_{timestamp}")
+        
+        # Set up new update directory
         random_digits = random.randint(100, 999)
         update_dir = os.path.join(home_dir, f"updated{random_digits}")
         
         # Update status message
-        await msg.edit(content=f"🔄 Setting up update directory: `{update_dir}`")
+        await msg.edit(content=f"🔄 Setting up update directories...")
         self.logger.info(f"Update directory: {update_dir}")
+        self.logger.info(f"Old version directory: {old_version_dir}")
         
         try:
             # Create update directory
             os.makedirs(update_dir, exist_ok=True)
+            
+            # Save current version to old_version_dir
+            await msg.edit(content=f"🔄 Backing up current version to {old_version_dir}...")
+            self.logger.info(f"Backing up current version to {old_version_dir}")
+            
+            # Create the old version directory
+            os.makedirs(old_version_dir, exist_ok=True)
+            
+            # Copy current installation to old_version_dir (excluding large dirs like venv)
+            for item in os.listdir(current_dir):
+                if item not in ['.git', '__pycache__', 'venv']:
+                    src_path = os.path.join(current_dir, item)
+                    dst_path = os.path.join(old_version_dir, item)
+                    
+                    if os.path.isdir(src_path):
+                        self.logger.info(f"Copying directory {item} to backup")
+                        shutil.copytree(src_path, dst_path)
+                    else:
+                        self.logger.info(f"Copying file {item} to backup")
+                        shutil.copy2(src_path, dst_path)
             
             # Clone repo to update directory
             await msg.edit(content=f"🔄 Cloning repository from {self.repo_url}...")
@@ -81,7 +113,7 @@ class GitUpdateCog(commands.Cog):
             self.logger.info(f"Found DB files: {db_files}")
             
             # Copy preserved files
-            await msg.edit(content="🔄 Copying configuration files...")
+            await msg.edit(content="🔄 Copying configuration files and databases...")
             
             # Add DB files to the list of files to preserve
             files_to_copy = self.files_to_preserve + [os.path.basename(db) for db in db_files]
@@ -136,17 +168,20 @@ class GitUpdateCog(commands.Cog):
         except Exception as e:
             self.logger.error(f"Update failed: {str(e)}", exc_info=True)
             await msg.edit(content=f"❌ Update failed: {str(e)}")
-            # Clean up
+            # Clean up but leave the backup
             shutil.rmtree(update_dir, ignore_errors=True)
     
     def _create_restart_script(self, update_dir):
         """Create a script that will restart the bot from the new location"""
-        # Get current Python executable
-        python_exe = sys.executable
+        # Set path to the venv in home directory
+        home_dir = os.path.expanduser("~")
+        venv_dir = os.path.join(home_dir, "venv")
         
-        # Determine if we're inside a virtual environment
-        in_venv = hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix)
-        venv_path = sys.prefix if in_venv else None
+        # Determine Python executable path based on platform
+        if platform.system() == "Windows":
+            python_exe = os.path.join(venv_dir, "Scripts", "python.exe")
+        else:
+            python_exe = os.path.join(venv_dir, "bin", "python")
         
         # Create temporary script file with appropriate extension
         is_windows = platform.system() == "Windows"
@@ -167,16 +202,19 @@ class GitUpdateCog(commands.Cog):
                 # Change to the new directory
                 f.write(f"Set-Location -Path '{update_dir}'\n\n")
                 
-                # If we were in a virtual environment, activate it
-                if in_venv:
-                    venv_activate = os.path.join(venv_path, "Scripts", "Activate.ps1")
-                    f.write(f". '{venv_activate}'\n\n")
-                
-                # Start the bot
-                f.write(f"& '{python_exe}' bot.py\n")
+                # Check if venv exists
+                f.write(f"if (Test-Path '{venv_dir}') {{\n")
+                # Activate venv and run bot
+                f.write(f"    Write-Host 'Using virtual environment at {venv_dir}'\n")
+                f.write(f"    & '{python_exe}' bot.py\n")
+                f.write("} else {\n")
+                # Fallback to system Python
+                f.write(f"    Write-Host 'Virtual environment not found at {venv_dir}, using system Python'\n")
+                f.write(f"    python bot.py\n")
+                f.write("}\n\n")
                 
                 # Self-destruct the script
-                f.write("\n# Remove this script\n")
+                f.write("# Remove this script\n")
                 f.write(f"Remove-Item -Path '{script_path}'\n")
         else:
             # Bash script for Unix-like systems
@@ -191,16 +229,19 @@ class GitUpdateCog(commands.Cog):
                 # Change to the new directory
                 f.write(f"cd {update_dir}\n\n")
                 
-                # If we were in a virtual environment, activate it
-                if in_venv:
-                    venv_activate = os.path.join(venv_path, "bin", "activate")
-                    f.write(f"source {venv_activate}\n\n")
-                
-                # Start the bot
-                f.write(f"{python_exe} bot.py\n")
+                # Check if venv exists
+                f.write(f"if [ -d \"{venv_dir}\" ]; then\n")
+                # Activate venv and run bot
+                f.write(f"    echo 'Using virtual environment at {venv_dir}'\n")
+                f.write(f"    {python_exe} bot.py\n")
+                f.write("else\n")
+                # Fallback to system Python
+                f.write(f"    echo 'Virtual environment not found at {venv_dir}, using system Python'\n")
+                f.write(f"    python3 bot.py\n")
+                f.write("fi\n\n")
                 
                 # Self-destruct the script
-                f.write("\n# Remove this script\n")
+                f.write("# Remove this script\n")
                 f.write(f"rm {script_path}\n")
         
         return script_path
