@@ -228,7 +228,7 @@ class GitUpdateCog(BaseCog):
                 f.write(f"    $old_version_dir = '{old_version_dir}'\n")
                 f.write(f"}}\n\n")
                 
-                # Safely move the old installation to backup folder
+                # Move the old installation to backup folder
                 f.write(f"Write-Host 'Moving old bot installation to $old_version_dir...'\n")
                 f.write(f"if (Test-Path '{current_dir}') {{\n")
                 f.write(f"    try {{\n")
@@ -242,8 +242,18 @@ class GitUpdateCog(BaseCog):
                 f.write(f"    }}\n")
                 f.write(f"}}\n\n")
                 
-                # Change to the new directory
-                f.write(f"Set-Location -Path '{update_dir}'\n\n")
+                # Move files from update_dir to current_dir
+                f.write(f"Write-Host 'Moving updated files to original location...'\n")
+                f.write(f"Get-ChildItem -Path '{update_dir}' -Force | Move-Item -Destination '{current_dir}' -Force\n\n")
+                
+                # Remove the temporary update directory
+                f.write(f"Write-Host 'Cleaning up temporary directories...'\n")
+                f.write(f"if (Test-Path '{update_dir}') {{\n")
+                f.write(f"    Remove-Item -Path '{update_dir}' -Recurse -Force\n")
+                f.write(f"}}\n\n")
+                
+                # Change to the original directory
+                f.write(f"Set-Location -Path '{current_dir}'\n\n")
                 
                 # Check if venv exists
                 f.write(f"if (Test-Path '{venv_dir}') {{\n")
@@ -280,7 +290,7 @@ class GitUpdateCog(BaseCog):
                 f.write("    i=$((i+1))\n")
                 f.write("done\n\n")
                 
-                # Move old repository directory instead of just removing it
+                # Move old repository directory to backup
                 f.write(f"echo 'Moving old bot installation to $old_version_dir...'\n")
                 f.write(f"if [ -d \"{current_dir}\" ]; then\n")
                 f.write(f"    mkdir -p \"$old_version_dir\"\n")
@@ -289,8 +299,18 @@ class GitUpdateCog(BaseCog):
                 f.write(f"    echo 'Old installation moved to backup successfully'\n")
                 f.write(f"fi\n\n")
                 
-                # Change to the new directory
-                f.write(f"cd {update_dir}\n\n")
+                # Move files from update_dir to current_dir
+                f.write(f"echo 'Moving updated files to original location...'\n")
+                f.write(f"cp -a {update_dir}/* {update_dir}/.* {current_dir}/ 2>/dev/null || :\n\n")
+                
+                # Remove the temporary update directory
+                f.write(f"echo 'Cleaning up temporary directories...'\n")
+                f.write(f"if [ -d \"{update_dir}\" ]; then\n")
+                f.write(f"    rm -rf \"{update_dir}\"\n")
+                f.write(f"fi\n\n")
+                
+                # Change to the original directory
+                f.write(f"cd {current_dir}\n\n")
                 
                 # Check if venv exists
                 f.write(f"if [ -d \"{venv_dir}\" ]; then\n")
