@@ -25,10 +25,10 @@ try:
         config = tomli.load(f)
 except FileNotFoundError:
     print("Config file config.toml not found, using default values")
-    config = {'main': {'prefix': 'rb ', 'owner_id': 1334095036236959770}}
+    config = {'main': {'prefix': 'rb ', 'owner_id': 587208453018091538}}
 
 # After loading config and before creating the bot
-our_owner_id = config.get('main', {}).get('owner_id', 1334095036236959770)
+our_owner_id = config.get('main', {}).get('owner_id', 587208453018091538)
 print(f"Setting owner ID to: {our_owner_id}")
 
 # Setup Discord bot
