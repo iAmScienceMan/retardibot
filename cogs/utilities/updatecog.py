@@ -185,6 +185,11 @@ class GitUpdateCog(BaseCog):
         home_dir = os.path.expanduser("~")
         venv_dir = os.path.join(home_dir, "venv")
         
+        # Generate timestamp for old version (same format as in update_bot)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        old_versions_dir = os.path.join(home_dir, "old")
+        old_version_dir = os.path.join(old_versions_dir, f"retardibot_{timestamp}")
+        
         # Determine Python executable path based on platform
         if platform.system() == "Windows":
             python_exe = os.path.join(venv_dir, "Scripts", "python.exe")
@@ -207,14 +212,33 @@ class GitUpdateCog(BaseCog):
                 f.write("Write-Host 'Waiting for current bot process to exit...'\n")
                 f.write("Start-Sleep -Seconds 5\n\n")
                 
-                # Remove old repository directory
-                f.write(f"Write-Host 'Removing old bot installation from {current_dir}...'\n")
+                # Create old version directory if it doesn't exist yet
+                f.write(f"if (-not (Test-Path '{old_versions_dir}')) {{\n")
+                f.write(f"    New-Item -Path '{old_versions_dir}' -ItemType Directory -Force\n")
+                f.write(f"}}\n\n")
+                
+                # Ensure the specific backup dir doesn't exist
+                f.write(f"if (Test-Path '{old_version_dir}') {{\n")
+                f.write(f"    $i = 1\n")
+                f.write(f"    while (Test-Path '{old_version_dir}_$i') {{\n")
+                f.write(f"        $i++\n")
+                f.write(f"    }}\n")
+                f.write(f"    $old_version_dir = '{old_version_dir}_' + $i\n")
+                f.write(f"}} else {{\n")
+                f.write(f"    $old_version_dir = '{old_version_dir}'\n")
+                f.write(f"}}\n\n")
+                
+                # Safely move the old installation to backup folder
+                f.write(f"Write-Host 'Moving old bot installation to $old_version_dir...'\n")
                 f.write(f"if (Test-Path '{current_dir}') {{\n")
                 f.write(f"    try {{\n")
-                f.write(f"        Remove-Item -Path '{current_dir}' -Recurse -Force\n")
-                f.write(f"        Write-Host 'Old installation removed successfully'\n")
+                f.write(f"        # Create target directory\n")
+                f.write(f"        New-Item -Path $old_version_dir -ItemType Directory -Force\n")
+                f.write(f"        # Move content instead of deleting\n") 
+                f.write(f"        Get-ChildItem -Path '{current_dir}' -Exclude '.git','__pycache__','venv' | Move-Item -Destination $old_version_dir -Force\n")
+                f.write(f"        Write-Host 'Old installation moved to backup successfully'\n")
                 f.write(f"    }} catch {{\n")
-                f.write(f"        Write-Host 'Warning: Could not remove old installation: $_'\n")
+                f.write(f"        Write-Host 'Warning: Could not move old installation: $_'\n")
                 f.write(f"    }}\n")
                 f.write(f"}}\n\n")
                 
@@ -245,10 +269,24 @@ class GitUpdateCog(BaseCog):
                 f.write("echo 'Waiting for current bot process to exit...'\n")
                 f.write("sleep 5\n\n")
                 
-                # Remove old repository directory
-                f.write(f"echo 'Removing old bot installation from {current_dir}...'\n")
+                # Create old versions directory if it doesn't exist
+                f.write(f"mkdir -p \"{old_versions_dir}\"\n\n")
+                
+                # Handle case where backup dir already exists
+                f.write(f"old_version_dir=\"{old_version_dir}\"\n")
+                f.write("i=1\n")
+                f.write("while [ -d \"$old_version_dir\" ]; do\n")
+                f.write("    old_version_dir=\"{old_version_dir}_$i\"\n")
+                f.write("    i=$((i+1))\n")
+                f.write("done\n\n")
+                
+                # Move old repository directory instead of just removing it
+                f.write(f"echo 'Moving old bot installation to $old_version_dir...'\n")
                 f.write(f"if [ -d \"{current_dir}\" ]; then\n")
-                f.write(f"    rm -rf \"{current_dir}\" && echo 'Old installation removed successfully' || echo 'Warning: Could not remove old installation'\n")
+                f.write(f"    mkdir -p \"$old_version_dir\"\n")
+                f.write(f"    # Move all files except .git, __pycache__, venv to backup\n")
+                f.write(f"    find \"{current_dir}\" -maxdepth 1 -not -name '.git' -not -name '__pycache__' -not -name 'venv' -not -path \"{current_dir}\" -exec mv {{}} \"$old_version_dir/\" \\;\n")
+                f.write(f"    echo 'Old installation moved to backup successfully'\n")
                 f.write(f"fi\n\n")
                 
                 # Change to the new directory
