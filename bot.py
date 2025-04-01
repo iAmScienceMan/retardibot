@@ -1,6 +1,7 @@
 import disnake
 from disnake.ext import commands
-import json
+import tomli
+import tomli_w
 import os
 from dotenv import load_dotenv
 import logging
@@ -18,13 +19,13 @@ Unauthorized removal of this notice violates licensing terms.
 load_dotenv()
 TOKEN = os.getenv("TOKEN")
 
-# Load JSON configuration
+# Load TOML configuration
 try:
-    with open("config.json") as f:
-        config = json.load(f)
+    with open("config.toml", "rb") as f:
+        config = tomli.load(f)
 except FileNotFoundError:
-    print("Config file config.json not found, using default values")
-    config = {'prefix': 'rb ', 'owner_id': 0}
+    print("Config file config.toml not found, using default values")
+    config = {'prefix': 'rb ', 'owner_id': 1334095036236959770}
 
 # Setup Discord bot
 intents = disnake.Intents.all()

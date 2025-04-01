@@ -128,10 +128,21 @@ class ReactionCog(BaseCog):
         
         # Save config
         try:
-            import json
-            with open("config.json", 'w') as f:
-                json.dump(config, f, indent=4)
-                
+            import tomli
+            import tomli_w
+            with open("config.toml", "rb") as f:
+                toml_config = tomli.load(f)
+            
+            # Update the config with the new data
+            toml_config["reaction"]["trigger_words"].append(word)
+            
+            # Write back to file
+            with open("config.toml", "wb") as f:
+                tomli_w.dump(toml_config, f)
+            
+            # Update the bot's config
+            self.bot.config = toml_config
+                    
             await ctx.send(f"Added '{word}' to trigger words.")
             self.logger.info(f"User {ctx.author} added trigger word: {word}")
         except Exception as e:
@@ -160,10 +171,23 @@ class ReactionCog(BaseCog):
         
         # Save config
         try:
-            import json
-            with open("config.json", 'w') as f:
-                json.dump(config, f, indent=4)
-                
+            import tomli
+            import tomli_w
+            with open("config.toml", "rb") as f:
+                toml_config = tomli.load(f)
+            
+            # Remove the word from trigger words
+            if "reaction" in toml_config and "trigger_words" in toml_config["reaction"]:
+                if word in toml_config["reaction"]["trigger_words"]:
+                    toml_config["reaction"]["trigger_words"].remove(word)
+            
+            # Write back to file
+            with open("config.toml", "wb") as f:
+                tomli_w.dump(toml_config, f)
+            
+            # Update the bot's config
+            self.bot.config = toml_config
+                    
             await ctx.send(f"Removed '{word}' from trigger words.")
             self.logger.info(f"User {ctx.author} removed trigger word: {word}")
         except Exception as e:

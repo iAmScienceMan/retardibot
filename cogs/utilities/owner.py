@@ -4,7 +4,8 @@ import asyncio
 import os
 import sys
 import datetime
-import json
+import tomli
+import tomli_w
 import platform
 import psutil
 import subprocess
@@ -450,11 +451,26 @@ class OwnerCog(BaseCog, command_attrs=dict(hidden=True)):
         
         # Save to file
         try:
-            with open("config.json", 'w') as f:
-                json.dump(config, f, indent=4)
-                
+            with open("config.toml", "rb") as f:
+                toml_config = tomli.load(f)
+            
+            # Make sure the blacklist section exists
+            if "blacklist" not in toml_config:
+                toml_config["blacklist"] = {}
+            
+            # Add user to blacklist
+            toml_config["blacklist"][str(user.id)] = {
+                "reason": reason,
+                "added_by": ctx.author.id,
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            }
+            
+            # Write back to file
+            with open("config.toml", "wb") as f:
+                tomli_w.dump(toml_config, f)
+            
             # Update bot's config
-            self.bot.config = config
+            self.bot.config = toml_config
             
             await ctx.send(f"✅ Added {user.mention} to the blacklist. Reason: {reason}")
             self.logger.warning(f"User {user} ({user.id}) blacklisted by {ctx.author}. Reason: {reason}")
@@ -474,14 +490,25 @@ class OwnerCog(BaseCog, command_attrs=dict(hidden=True)):
         
         # Save to file
         try:
-            with open("config.json", 'w') as f:
-                json.dump(config, f, indent=4)
-                
-            # Update bot's config
-            self.bot.config = config
+            with open("config.toml", "rb") as f:
+                toml_config = tomli.load(f)
             
-            await ctx.send(f"✅ Removed {user.mention} from the blacklist.")
-            self.logger.info(f"User {user} ({user.id}) removed from blacklist by {ctx.author}")
+            # Make sure the blacklist section exists
+            if "blacklist" in toml_config and str(user.id) in toml_config["blacklist"]:
+                # Remove user from blacklist
+                del toml_config["blacklist"][str(user.id)]
+                
+                # Write back to file
+                with open("config.toml", "wb") as f:
+                    tomli_w.dump(toml_config, f)
+                
+                # Update bot's config
+                self.bot.config = toml_config
+                
+                await ctx.send(f"✅ Removed {user.mention} from the blacklist.")
+                self.logger.info(f"User {user} ({user.id}) removed from blacklist by {ctx.author}")
+            else:
+                await ctx.send(f"{user.mention} is not blacklisted.")
         except Exception as e:
             await ctx.send(f"Error saving blacklist: {e}")
             

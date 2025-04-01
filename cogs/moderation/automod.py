@@ -3,7 +3,8 @@ from disnake.ext import commands
 import os
 from openai import AsyncOpenAI
 import asyncio
-import json
+import tomli
+import tomli_w
 from dotenv import load_dotenv
 from cogs.common.base_cog import BaseCog
 

@@ -3,6 +3,8 @@ from disnake.ext import commands
 import datetime
 import sqlite3
 import os
+import tomli
+import tomli_w
 import json
 from typing import Optional, Union
 from cogs.common.base_cog import BaseCog
@@ -1227,8 +1229,16 @@ class LoggingCog(BaseCog):
 
         # Save to file
         try:
-            with open("config.json", 'w') as f:
-                json.dump(main_config, f, indent=4)
+            with open("config.toml", "rb") as f:
+                toml_config = tomli.load(f)
+            
+            # Update the config
+            for key, value in main_config.items():
+                toml_config[key] = value
+            
+            # Write back to file
+            with open("config.toml", "wb") as f:
+                tomli_w.dump(toml_config, f)
         except Exception as e:
             self.logger.error(f"Error saving config: {e}")
 
