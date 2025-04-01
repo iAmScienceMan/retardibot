@@ -6,10 +6,11 @@ import os
 import tomli
 import sys
 from logging.handlers import RotatingFileHandler
+from cogs.common.base_cog import BaseCog
 
-class DevLogger(commands.Cog):
+class DevLogger(BaseCog):
     def __init__(self, bot):
-        self.bot = bot
+        super().__init__(bot)
         self.config_path = "devlogger_config.toml"
         self.logger = None
         self.setup_logger()

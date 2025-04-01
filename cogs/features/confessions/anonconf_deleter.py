@@ -1,13 +1,13 @@
 import disnake
 import asyncio
 from disnake.ext import commands
+from cogs.common.base_cog import BaseCog
 
-class MessageDeleter(commands.Cog):
+class MessageDeleter(BaseCog):
     """Ensures only confessions appear in the confessions channel"""
     
     def __init__(self, bot):
-        self.bot = bot
-        self.logger = bot.dev_logger.getChild('message_deleter')
+        super().__init__(bot)
         
         # Find the ConfessionsCog
         confession_cog = self.bot.get_cog("ConfessionsCog")

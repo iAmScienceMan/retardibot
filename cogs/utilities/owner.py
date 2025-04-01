@@ -13,13 +13,13 @@ import textwrap
 import io
 import traceback
 from contextlib import redirect_stdout
+from cogs.common.base_cog import BaseCog
 
-class OwnerCog(commands.Cog, command_attrs=dict(hidden=True)):
+class OwnerCog(BaseCog, command_attrs=dict(hidden=True)):
     """Special commands for the bot owner only"""
     
     def __init__(self, bot):
-        self.bot = bot
-        self.logger = bot.dev_logger
+        super().__init__(bot)
         self._last_result = None
         self.sessions = {}
         

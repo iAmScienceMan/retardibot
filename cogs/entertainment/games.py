@@ -3,10 +3,11 @@ from disnake.ext import commands
 import random
 import asyncio
 import random
+from cogs.common.base_cog import BaseCog
 
-class RussianRouletteCog(commands.Cog):
+class RussianRouletteCog(BaseCog):
     def __init__(self, bot):
-        self.bot = bot
+        super().__init__(bot)
         self.active_games = {}  # Store active game sessions
 
     @commands.command()

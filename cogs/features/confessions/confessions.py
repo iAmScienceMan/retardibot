@@ -1,12 +1,12 @@
 import disnake
 from disnake.ext import commands
+from cogs.common.base_cog import BaseCog
 import sqlite3
 import datetime
 
-class ConfessionsCog(commands.Cog):
+class ConfessionsCog(BaseCog):
     def __init__(self, bot):
-        self.bot = bot
-        self.logger = bot.dev_logger
+        super().__init__(bot)
         config = getattr(self.bot, 'config', {})
         self.confession_channel_id = config.get("confession_channel_id")
         self.db_path = "confessions.db"

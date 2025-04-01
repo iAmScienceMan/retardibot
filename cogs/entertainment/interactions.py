@@ -1,11 +1,11 @@
 import disnake
 from disnake.ext import commands
 import random
+from cogs.common.base_cog import BaseCog
 
-class InteractionsCog(commands.Cog):
+class InteractionsCog(BaseCog):
     def __init__(self, bot):
-        self.bot = bot
-        self.logger = bot.dev_logger.getChild('interactions')
+        super().__init__(bot)
         
         # Define interaction messages for each command
         self.interactions = {

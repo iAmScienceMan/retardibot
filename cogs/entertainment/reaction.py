@@ -1,10 +1,10 @@
 import disnake
 from disnake.ext import commands
+from cogs.common.base_cog import BaseCog
 
-class ReactionCog(commands.Cog):
+class ReactionCog(BaseCog):
     def __init__(self, bot):
-        self.bot = bot
-        self.logger = bot.dev_logger.getChild('reaction')
+        super().__init__(bot)
         
         # Load configuration
         reaction_config = getattr(self.bot, 'config', {}).get("reaction", {})

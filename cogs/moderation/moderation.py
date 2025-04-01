@@ -4,10 +4,11 @@ import datetime
 import asyncio
 import sqlite3
 import os
+from cogs.common.base_cog import BaseCog
 
-class ModerationCog(commands.Cog):
+class ModerationCog(BaseCog):
     def __init__(self, bot):
-        self.bot = bot
+        super().__init__(bot)
         self.db_path = "moderation.db"
         self._create_tables()
 

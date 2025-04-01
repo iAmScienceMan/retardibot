@@ -5,12 +5,12 @@ import sqlite3
 import os
 import json
 from typing import Optional, Union
+from cogs.common.base_cog import BaseCog
 
 
-class LoggingCog(commands.Cog):
+class LoggingCog(BaseCog):
     def __init__(self, bot):
-        self.bot = bot
-        self.logger = bot.dev_logger
+        super().__init__(bot)
         self.db_path = "logs.db"
         self._create_tables()
 

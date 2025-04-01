@@ -3,11 +3,11 @@ from disnake.ext import commands
 import datetime
 import asyncio
 from typing import Optional, List, Dict, Any, Union
+from cogs.common.base_cog import BaseCog
 
-class HelpCommand(commands.Cog):
+class HelpCommand(BaseCog):
     def __init__(self, bot):
-        self.bot = bot
-        self.logger = bot.dev_logger
+        super().__init__(bot)
         self.color = disnake.Color.from_rgb(114, 137, 218)  # Discord blurple
         
         # Categories with descriptions and emojis

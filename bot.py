@@ -121,39 +121,77 @@ async def blacklist_check(ctx):
     # User not blacklisted, allow command
     return True
 
-# Load all cogs
+# Load all cogs from the new organized structure
 def load_cogs():
-    cogs_dir = os.path.join(os.path.dirname(__file__), "cogs")
-    bot.dev_logger.info(f"Loading cogs from {cogs_dir}")
+    """Load all cogs from the organized cogs directory structure"""
+    cogs_loaded = 0
+    cogs_failed = 0
     
-    # Create the cogs directory if it doesn't exist
-    os.makedirs(cogs_dir, exist_ok=True)
+    # Create cogs directory if it doesn't exist
+    os.makedirs("cogs", exist_ok=True)
     
-    success_count = 0
-    fail_count = 0
-    
-    # Load the DevLogger cog first to set up the logging system
+    # Load DevLogger first to set up proper logging
     try:
-        bot.load_extension("cogs.devlogger")
-        bot.dev_logger.info("Loaded DevLogger cog")
-        success_count += 1
+        # First try from the new location
+        try:
+            bot.load_extension("cogs.utilities.devlogger")
+            bot.dev_logger.info("Loaded DevLogger cog from new location")
+        except (ImportError, ModuleNotFoundError):
+            # Fall back to old location if not migrated yet
+            bot.load_extension("cogs.devlogger")
+            bot.dev_logger.info("Loaded DevLogger cog from original location")
+        cogs_loaded += 1
     except Exception as e:
         bot.dev_logger.error(f"Failed to load DevLogger cog: {e}", exc_info=True)
-        fail_count += 1
+        cogs_failed += 1
     
-    # Then load other cogs
-    for filename in os.listdir(cogs_dir):
-        if filename.endswith(".py") and filename != "devlogger.py":  # Skip devlogger as we already loaded it
-            cog_name = f"cogs.{filename[:-3]}"
+    # Function to recursively load cogs from directories
+    def load_from_dir(directory):
+        nonlocal cogs_loaded, cogs_failed
+        
+        # Check if directory exists
+        if not os.path.exists(directory):
+            return
+        
+        for filename in os.listdir(directory):
+            path = os.path.join(directory, filename)
+            
+            # Skip __pycache__ and other special directories
+            if filename.startswith("__"):
+                continue
+                
+            # If it's a directory, recurse into it
+            if os.path.isdir(path):
+                load_from_dir(path)
+                continue
+                
+            # Only load .py files as cogs
+            if not filename.endswith('.py'):
+                continue
+            
+            # Skip devlogger as we already loaded it
+            if (filename == "devlogger.py"):
+                continue
+
+            # Skip base_cog as it is an abstract class
+            if (filename == "base_cog.py"):
+                continue
+                
+            # Convert file path to module path
+            module_path = os.path.relpath(path, os.path.dirname(__file__)).replace(os.sep, '.')[:-3]  # Remove .py
+                
             try:
-                bot.load_extension(cog_name)
-                bot.dev_logger.info(f"Loaded cog: {cog_name}")
-                success_count += 1
+                bot.load_extension(module_path)
+                bot.dev_logger.info(f"Loaded cog: {module_path}")
+                cogs_loaded += 1
             except Exception as e:
-                bot.dev_logger.error(f"Failed to load cog {cog_name}: {e}", exc_info=True)
-                fail_count += 1
+                bot.dev_logger.error(f"Failed to load cog {module_path}: {e}", exc_info=True)
+                cogs_failed += 1
     
-    bot.dev_logger.info(f"Cog loading complete. Success: {success_count}, Failed: {fail_count}")
+    # Load all cogs
+    load_from_dir("cogs")
+    
+    bot.dev_logger.info(f"Cog loading complete. Success: {cogs_loaded}, Failed: {cogs_failed}")
 
 # Load cogs and run the bot
 if __name__ == "__main__":

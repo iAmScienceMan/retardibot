@@ -5,11 +5,11 @@ from openai import AsyncOpenAI
 import asyncio
 import json
 from dotenv import load_dotenv
+from cogs.common.base_cog import BaseCog
 
-class AutoModCog(commands.Cog):
+class AutoModCog(BaseCog):
     def __init__(self, bot):
-        self.bot = bot
-        self.logger = bot.dev_logger
+        super().__init__(bot)
         load_dotenv()
         self.openai_key = os.getenv("OPENAI_KEY")
         
