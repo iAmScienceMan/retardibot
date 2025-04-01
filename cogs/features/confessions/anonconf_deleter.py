@@ -19,14 +19,16 @@ class MessageDeleter(BaseCog):
         else:
             # Try to get from config as fallback
             config = getattr(self.bot, 'config', {})
+            # In TOML, top-level keys are accessed directly
             self.channel_id = config.get("confession_channel_id") or None
-            self.logger.warning(f"ConfessionsCog not found or ConfessionsCog.channel_id, reading config.confessions.channel_id")
+            self.logger.warning(f"ConfessionsCog not found or ConfessionsCog.channel_id, reading config.confession_channel_id")
             # Exit the bot if no Confession channel
             if self.channel_id == None:
-                self.logger.critical("Could not find config.confessions.channel_id, stopping the bot.")
+                self.logger.critical("Could not find config.confession_channel_id, stopping the bot.")
                 asyncio.create_task(self.bot.close())
-        
+
         # Get moderator role ID for exemption check
+        # In TOML, we access nested dictionaries/tables the same way
         automod_config = getattr(self.bot, 'config', {}).get("automod", {})
         self.mod_role_id = automod_config.get("mod_role_id", None)
         if self.mod_role_id == None:
