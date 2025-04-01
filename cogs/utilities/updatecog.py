@@ -217,40 +217,62 @@ class GitUpdateCog(BaseCog):
                 f.write(f"    New-Item -Path '{old_versions_dir}' -ItemType Directory -Force\n")
                 f.write(f"}}\n\n")
                 
-                # Ensure the specific backup dir doesn't exist
-                f.write(f"if (Test-Path '{old_version_dir}') {{\n")
-                f.write(f"    $i = 1\n")
-                f.write(f"    while (Test-Path '{old_version_dir}_$i') {{\n")
-                f.write(f"        $i++\n")
-                f.write(f"    }}\n")
-                f.write(f"    $old_version_dir = '{old_version_dir}_' + $i\n")
-                f.write(f"}} else {{\n")
-                f.write(f"    $old_version_dir = '{old_version_dir}'\n")
+                # Generate a unique backup directory name to avoid conflicts
+                f.write(f"$backup_timestamp = '{timestamp}'\n")
+                f.write(f"$old_version_dir = '{old_versions_dir}\\retardibot_' + $backup_timestamp\n")
+                f.write(f"$attempt = 1\n")
+                f.write(f"while (Test-Path $old_version_dir) {{\n")
+                f.write(f"    $old_version_dir = '{old_versions_dir}\\retardibot_' + $backup_timestamp + '_' + $attempt\n")
+                f.write(f"    $attempt++\n")
                 f.write(f"}}\n\n")
                 
-                # Move the old installation to backup folder
-                f.write(f"Write-Host 'Moving old bot installation to $old_version_dir...'\n")
+                f.write(f"Write-Host \"Creating backup in $old_version_dir...\"\n")
+                f.write(f"New-Item -Path $old_version_dir -ItemType Directory -Force\n\n")
+                
+                # Create a full backup of the entire directory except large/temp folders
+                f.write(f"Write-Host 'Creating full backup of current installation...'\n")
                 f.write(f"if (Test-Path '{current_dir}') {{\n")
                 f.write(f"    try {{\n")
-                f.write(f"        # Create target directory\n")
-                f.write(f"        New-Item -Path $old_version_dir -ItemType Directory -Force\n")
-                f.write(f"        # Move content instead of deleting\n") 
-                f.write(f"        Get-ChildItem -Path '{current_dir}' -Exclude '.git','__pycache__','venv' | Move-Item -Destination $old_version_dir -Force\n")
-                f.write(f"        Write-Host 'Old installation moved to backup successfully'\n")
+                f.write(f"        # Copy everything except specific directories to backup\n")
+                f.write(f"        Get-ChildItem -Path '{current_dir}' -Exclude '.git','__pycache__','venv' | ForEach-Object {{\n")
+                f.write(f"            $sourceItem = $_\n")
+                f.write(f"            $targetPath = Join-Path -Path $old_version_dir -ChildPath $sourceItem.Name\n\n")
+                f.write(f"            if ($sourceItem.PSIsContainer) {{\n")
+                f.write(f"                # It's a directory - copy it and all contents\n")
+                f.write(f"                Copy-Item -Path $sourceItem.FullName -Destination $targetPath -Recurse -Force\n")
+                f.write(f"            }} else {{\n")
+                f.write(f"                # It's a file - just copy it\n")
+                f.write(f"                Copy-Item -Path $sourceItem.FullName -Destination $targetPath -Force\n")
+                f.write(f"            }}\n")
+                f.write(f"        }}\n")
+                f.write(f"        Write-Host 'Full backup completed successfully'\n")
                 f.write(f"    }} catch {{\n")
-                f.write(f"        Write-Host 'Warning: Could not move old installation: $_'\n")
+                f.write(f"        Write-Host \"Error during backup: $_\"\n")
+                f.write(f"        exit 1\n")
                 f.write(f"    }}\n")
                 f.write(f"}}\n\n")
                 
-                # Move files from update_dir to current_dir
-                f.write(f"Write-Host 'Moving updated files to original location...'\n")
-                f.write(f"Get-ChildItem -Path '{update_dir}' -Force | Move-Item -Destination '{current_dir}' -Force\n\n")
+                # Empty the original directory before copying new files (preserve .git)
+                f.write(f"Write-Host 'Clearing original directory for update...'\n")
+                f.write(f"Get-ChildItem -Path '{current_dir}' -Exclude '.git','__pycache__','venv' | Remove-Item -Recurse -Force\n\n")
                 
-                # Remove the temporary update directory
-                f.write(f"Write-Host 'Cleaning up temporary directories...'\n")
-                f.write(f"if (Test-Path '{update_dir}') {{\n")
-                f.write(f"    Remove-Item -Path '{update_dir}' -Recurse -Force\n")
+                # Copy the new version to the original directory
+                f.write(f"Write-Host 'Installing updated files...'\n")
+                f.write(f"Get-ChildItem -Path '{update_dir}' -Force | ForEach-Object {{\n")
+                f.write(f"    $sourceItem = $_\n")
+                f.write(f"    $targetPath = Join-Path -Path '{current_dir}' -ChildPath $sourceItem.Name\n\n")
+                f.write(f"    if ($sourceItem.PSIsContainer -and $sourceItem.Name -ne '.git') {{\n")
+                f.write(f"        # It's a directory - copy it and all contents\n")
+                f.write(f"        Copy-Item -Path $sourceItem.FullName -Destination $targetPath -Recurse -Force\n")
+                f.write(f"    }} elseif (-not $sourceItem.PSIsContainer) {{\n")
+                f.write(f"        # It's a file - just copy it\n")
+                f.write(f"        Copy-Item -Path $sourceItem.FullName -Destination $targetPath -Force\n")
+                f.write(f"    }}\n")
                 f.write(f"}}\n\n")
+                
+                # Clean up the temporary directory
+                f.write(f"Write-Host 'Cleaning up temporary directory...'\n")
+                f.write(f"Remove-Item -Path '{update_dir}' -Recurse -Force -ErrorAction SilentlyContinue\n\n")
                 
                 # Change to the original directory
                 f.write(f"Set-Location -Path '{current_dir}'\n\n")
@@ -268,7 +290,7 @@ class GitUpdateCog(BaseCog):
                 
                 # Self-destruct the script
                 f.write("# Remove this script\n")
-                f.write(f"Remove-Item -Path '{script_path}'\n")
+                f.write(f"Remove-Item -Path '{script_path}' -Force\n")
         else:
             # Bash script for Unix-like systems
             with open(script_path, 'w') as f:
@@ -282,41 +304,56 @@ class GitUpdateCog(BaseCog):
                 # Create old versions directory if it doesn't exist
                 f.write(f"mkdir -p \"{old_versions_dir}\"\n\n")
                 
-                # Handle case where backup dir already exists
-                f.write(f"old_version_dir=\"{old_version_dir}\"\n")
-                f.write("i=1\n")
-                f.write("while [ -d \"$old_version_dir\" ]; do\n")
-                f.write("    old_version_dir=\"{old_version_dir}_$i\"\n")
-                f.write("    i=$((i+1))\n")
-                f.write("done\n\n")
+                # Generate a unique backup directory name to avoid conflicts
+                f.write(f"backup_timestamp=\"{timestamp}\"\n")
+                f.write(f"old_version_dir=\"{old_versions_dir}/retardibot_$backup_timestamp\"\n")
+                f.write(f"attempt=1\n")
+                f.write(f"while [ -d \"$old_version_dir\" ]; do\n")
+                f.write(f"    old_version_dir=\"{old_versions_dir}/retardibot_$backup_timestamp\"_\"$attempt\"\n")
+                f.write(f"    ((attempt++))\n")
+                f.write(f"done\n\n")
                 
-                # Move old repository directory to backup
-                f.write(f"echo 'Moving old bot installation to $old_version_dir...'\n")
+                f.write(f"echo \"Creating backup in $old_version_dir...\"\n")
+                f.write(f"mkdir -p \"$old_version_dir\"\n\n")
+                
+                # Create a full backup of the entire directory except large/temp folders
+                f.write(f"echo 'Creating full backup of current installation...'\n")
                 f.write(f"if [ -d \"{current_dir}\" ]; then\n")
-                f.write(f"    mkdir -p \"$old_version_dir\"\n")
-                f.write(f"    # Move all files except .git, __pycache__, venv to backup\n")
-                f.write(f"    find \"{current_dir}\" -maxdepth 1 -not -name '.git' -not -name '__pycache__' -not -name 'venv' -not -path \"{current_dir}\" -exec mv {{}} \"$old_version_dir/\" \\;\n")
-                f.write(f"    echo 'Old installation moved to backup successfully'\n")
+                f.write(f"    # Copy everything recursively, excluding specific directories\n")
+                f.write(f"    if [ -d \"{current_dir}\" ]; then\n")
+                f.write(f"        rsync -a --exclude='.git' --exclude='__pycache__' --exclude='venv' \"{current_dir}/\" \"$old_version_dir/\"\n")
+                f.write(f"        if [ $? -ne 0 ]; then\n")
+                f.write(f"            echo \"Error during backup with rsync, trying with cp...\"\n")
+                f.write(f"            find \"{current_dir}\" -mindepth 1 -maxdepth 1 -not -name '.git' -not -name '__pycache__' -not -name 'venv' -exec cp -r {{}} \"$old_version_dir/\" \\;\n")
+                f.write(f"        fi\n")
+                f.write(f"        echo 'Full backup completed successfully'\n")
+                f.write(f"    else\n")
+                f.write(f"        echo \"Error: {current_dir} does not exist\"\n")
+                f.write(f"        exit 1\n")
+                f.write(f"    fi\n")
                 f.write(f"fi\n\n")
                 
-                # Move files from update_dir to current_dir
-                f.write(f"echo 'Moving updated files to original location...'\n")
-                f.write(f"cp -a {update_dir}/* {update_dir}/.* {current_dir}/ 2>/dev/null || :\n\n")
+                # Clear the original directory (preserve .git)
+                f.write(f"echo 'Clearing original directory for update...'\n")
+                f.write(f"find \"{current_dir}\" -mindepth 1 -maxdepth 1 -not -name '.git' -not -name '__pycache__' -not -name 'venv' -exec rm -rf {{}} \\;\n\n")
                 
-                # Remove the temporary update directory
-                f.write(f"echo 'Cleaning up temporary directories...'\n")
-                f.write(f"if [ -d \"{update_dir}\" ]; then\n")
-                f.write(f"    rm -rf \"{update_dir}\"\n")
-                f.write(f"fi\n\n")
+                # Copy the new version to the original directory
+                f.write(f"echo 'Installing updated files...'\n")
+                f.write(f"cp -R \"{update_dir}\"/* \"{current_dir}/\"\n")
+                f.write(f"find \"{update_dir}\" -name \".*\" -maxdepth 1 -mindepth 1 -not -name \".git\" -exec cp -R {{}} \"{current_dir}/\" \\; 2>/dev/null || true\n\n")
+                
+                # Clean up the temporary directory
+                f.write(f"echo 'Cleaning up temporary directory...'\n")
+                f.write(f"rm -rf \"{update_dir}\"\n\n")
                 
                 # Change to the original directory
-                f.write(f"cd {current_dir}\n\n")
+                f.write(f"cd \"{current_dir}\"\n\n")
                 
                 # Check if venv exists
                 f.write(f"if [ -d \"{venv_dir}\" ]; then\n")
                 # Activate venv and run bot
                 f.write(f"    echo 'Using virtual environment at {venv_dir}'\n")
-                f.write(f"    {python_exe} bot.py\n")
+                f.write(f"    \"{python_exe}\" bot.py\n")
                 f.write("else\n")
                 # Fallback to system Python
                 f.write(f"    echo 'Virtual environment not found at {venv_dir}, using system Python'\n")
@@ -325,7 +362,7 @@ class GitUpdateCog(BaseCog):
                 
                 # Self-destruct the script
                 f.write("# Remove this script\n")
-                f.write(f"rm {script_path}\n")
+                f.write(f"rm -f \"{script_path}\"\n")
         
         return script_path
 
