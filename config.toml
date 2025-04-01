@@ -1,0 +1,80 @@
+# RetardiBot Configuration
+
+# Basic bot settings
+prefix = "rb "
+owner_id = 1334095036236959770
+
+[bot_settings]
+status_type = "watching"
+status_text = "you"
+status_state = "online"
+maintenance_mode = false
+description = "A Long-Term Support Discord bot created by iAmScienceMan"
+version = "1.0.0"
+
+# Reaction module configuration
+[reaction]
+emoji_id = 1349941832167194634
+emoji_fallback = "\u00f0\u0178\u02dc\u00b3"
+
+# Words that trigger the bot's reaction
+trigger_words = [
+    "thighs", "sex", "thicc", "bonk", "horny", "seggs", 
+    "uwu", "mommy", "daddy", "submissive", "breedable", 
+    "breeding", "juicy", "moist", "sus", "sussy", 
+    "down bad", "step-", "curves", "curvy", "frisky", 
+    "unhinged", "railed", "smash", "boinked", "badonkadonk", 
+    "dripping", "flirting", "grinding", "cummy", 
+    "smashable", "dick", "cock", "penis", "vagina", "esex"
+]
+
+# Logging configuration
+[logging]
+enabled = true
+log_channel_id = 1342693547698294900
+ignored_channels = []
+ignored_users = []
+
+[logging.log_events]
+message_delete = true
+message_edit = true
+member_join = true
+member_leave = true
+member_update = true
+channel_create = true
+channel_delete = true
+role_create = true
+role_delete = true
+voice_state_update = true
+
+# Guild-specific logging settings
+[logging.guild_settings.1351605814623866920]
+ignored_users = []
+ignored_channels = []
+
+# AutoMod configuration 
+[automod]
+mod_role_id = 1351591557425533099
+alert_channel_id = 1342693547698294903
+
+# Owner-only settings
+[owner_settings]
+secret_triggers = [
+    "open sesame",
+    "abracadabra",
+    "sudo make me a sandwich"
+]
+
+[owner_settings.auto_backup]
+enabled = true
+interval_hours = 24
+max_backups = 7
+
+# Blacklisted users
+[blacklist.000000000000000000]
+reason = "Example blacklisted user"
+added_by = 587208453018091538
+timestamp = "2025-03-29T12:00:00"
+
+# Anonymous confession system
+confession_channel_id = 1355495965615849535
