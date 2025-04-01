@@ -24,16 +24,16 @@ class MessageDeleter(BaseCog):
             self.logger.warning(f"ConfessionsCog not found or ConfessionsCog.channel_id, reading config.confession_channel_id")
             # Exit the bot if no Confession channel
             if self.channel_id == None:
-                self.logger.critical("Could not find config.confession_channel_id, stopping the bot.")
-                asyncio.create_task(self.bot.close())
+                self.logger.critical("Could not find config.confession_channel_id, disabling this cog.")
+                raise ValueError("Missing required configuration: confession_channel_id")
 
         # Get moderator role ID for exemption check
         # In TOML, we access nested dictionaries/tables the same way
         automod_config = getattr(self.bot, 'config', {}).get("automod", {})
         self.mod_role_id = automod_config.get("mod_role_id", None)
         if self.mod_role_id == None:
-            self.logger.critical("Could not find config.automod.mod_role_id, stopping the bot.")
-            asyncio.create_task(self.bot.close())
+            self.logger.critical("Could not find config.automod.mod_role_id, disabling this cog.")
+            raise ValueError("Missing required configuration: automod.mod_role_id")
         
         self.logger.info(f"Message deleter initialized for channel ID: {self.channel_id}")
 

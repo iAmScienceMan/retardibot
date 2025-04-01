@@ -23,6 +23,15 @@ class OwnerCog(BaseCog, command_attrs=dict(hidden=True)):
         super().__init__(bot)
         self._last_result = None
         self.sessions = {}
+
+    @commands.command(name="checkowner")
+    async def check_owner(self, ctx):
+        """Check if you're the bot owner"""
+        is_owner = await self.bot.is_owner(ctx.author)
+        bot_owner_id = self.bot.owner_id
+        author_id = ctx.author.id
+        
+        await ctx.send(f"Bot owner ID: {bot_owner_id}\nYour ID: {author_id}\nAre you owner? {is_owner}")
         
     @commands.command(name="shutdown", aliases=["die", "sleep"])
     @commands.is_owner()

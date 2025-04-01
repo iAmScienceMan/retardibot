@@ -25,14 +25,18 @@ try:
         config = tomli.load(f)
 except FileNotFoundError:
     print("Config file config.toml not found, using default values")
-    config = {'prefix': 'rb ', 'owner_id': 1334095036236959770}
+    config = {'main': {'prefix': 'rb ', 'owner_id': 1334095036236959770}}
+
+# After loading config and before creating the bot
+our_owner_id = config.get('main', {}).get('owner_id', 1334095036236959770)
+print(f"Setting owner ID to: {our_owner_id}")
 
 # Setup Discord bot
 intents = disnake.Intents.all()
 bot = commands.Bot(
-    command_prefix=config.get('prefix', 'rb '),
+    command_prefix=config.get('main', {}).get('prefix', 'rb '),
     intents=intents,
-    owner_id=config.get('owner_id', 0),
+    owner_id=our_owner_id,
     help_command=None
 )
 

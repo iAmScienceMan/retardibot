@@ -1,8 +1,11 @@
 # RetardiBot Configuration
+# Anonymous confession system
+confession_channel_id = 1355495965615849535
 
 # Basic bot settings
+[main]
 prefix = "rb "
-owner_id = 1334095036236959770
+owner_id = 587208453018091538
 
 [bot_settings]
 status_type = "watching"
@@ -54,7 +57,7 @@ ignored_channels = []
 
 # AutoMod configuration 
 [automod]
-mod_role_id = 1351591557425533099
+mod_role_id = 1356315914290856050
 alert_channel_id = 1342693547698294903
 
 # Owner-only settings
@@ -75,6 +78,3 @@ max_backups = 7
 reason = "Example blacklisted user"
 added_by = 587208453018091538
 timestamp = "2025-03-29T12:00:00"
-
-# Anonymous confession system
-confession_channel_id = 1355495965615849535
