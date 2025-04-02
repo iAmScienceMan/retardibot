@@ -51,14 +51,36 @@ class UpdateCog(BaseCog):
         update_message = await ctx.send("🔄 Starting update process...")
         
         try:
-            # Step 1: Clone the repository to a temporary directory
-            await self.update_status(update_message, "1️⃣ Cloning repository...")
+            # Get the correct bot directory
+            # Find the actual bot root directory by looking for bot.py
+            script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            
+            # Verify we have the correct directory by checking for bot.py
+            if not os.path.exists(os.path.join(script_dir, "bot.py")):
+                # Try one level up
+                script_dir = os.path.dirname(script_dir)
+                if not os.path.exists(os.path.join(script_dir, "bot.py")):
+                    await update_message.edit(content="❌ Error: Unable to find bot.py in the expected directory structure.")
+                    return
+            
+            current_dir = script_dir
+            
+            # Log the directories for debugging
+            self.logger.info(f"Current bot directory: {current_dir}")
+            
+            # Safety check to prevent operating on system directories
+            risky_dirs = ["/", "/root", "/home", "/etc", "/usr", "/var"]
+            if current_dir in risky_dirs:
+                await update_message.edit(content=f"❌ Error: Detected critical system directory ({current_dir}). Update aborted for safety.")
+                return
             
             home_dir = os.path.expanduser("~")
             temp_dir = os.path.join(home_dir, "downloading")
             backup_dir = os.path.join(home_dir, "old")
             clone_dir = os.path.join(temp_dir, "retardibot")
-            current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            
+            # Step 1: Clone the repository to a temporary directory
+            await self.update_status(update_message, "1️⃣ Cloning repository...")
             
             # Create temporary and backup directories if they don't exist
             os.makedirs(temp_dir, exist_ok=True)
@@ -112,28 +134,61 @@ class UpdateCog(BaseCog):
             backup_path = os.path.join(backup_dir, f"retardibot_{timestamp}")
             
             try:
-                shutil.move(current_dir, backup_path)
-                self.logger.info(f"Moved current installation to {backup_path}")
+                parent_dir = os.path.dirname(current_dir)
+                bot_dir_name = os.path.basename(current_dir)
+                
+                # Log the move operation details
+                self.logger.info(f"Moving {current_dir} to {backup_path}")
+                
+                # First, create the backup directory
+                os.makedirs(backup_path, exist_ok=True)
+                
+                # Copy files instead of moving to avoid issues
+                for item in os.listdir(current_dir):
+                    src = os.path.join(current_dir, item)
+                    dst = os.path.join(backup_path, item)
+                    if os.path.isdir(src):
+                        shutil.copytree(src, dst)
+                    else:
+                        shutil.copy2(src, dst)
+                
+                self.logger.info(f"Successfully copied current installation to {backup_path}")
+                
+                # Remove old directory contents but keep the directory itself
+                for item in os.listdir(current_dir):
+                    path = os.path.join(current_dir, item)
+                    if os.path.isdir(path):
+                        shutil.rmtree(path)
+                    else:
+                        os.remove(path)
+                
+                self.logger.info("Cleared current installation directory")
+                
             except Exception as e:
-                self.logger.error(f"Failed to move current installation to backup: {e}")
+                self.logger.error(f"Failed to backup current installation: {e}")
                 await update_message.edit(content=f"❌ Failed to backup current installation:\n```\n{str(e)}\n```")
                 return
             
-            # Step 4: Move new installation to main directory
+            # Step 4: Copy new installation to main directory
             await self.update_status(update_message, "4️⃣ Installing new version...")
             
             try:
-                shutil.move(clone_dir, os.path.dirname(current_dir))
-                self.logger.info("Moved new installation to main directory")
-            except Exception as e:
-                self.logger.error(f"Failed to move new installation: {e}")
-                # Try to restore the old installation
-                try:
-                    shutil.move(backup_path, current_dir)
-                    self.logger.info("Restored previous installation from backup")
-                except Exception as restore_error:
-                    self.logger.critical(f"Failed to restore previous installation: {restore_error}")
+                # Copy everything from clone_dir to current_dir
+                for item in os.listdir(clone_dir):
+                    src = os.path.join(clone_dir, item)
+                    dst = os.path.join(current_dir, item)
+                    if os.path.isdir(src):
+                        shutil.copytree(src, dst)
+                    else:
+                        shutil.copy2(src, dst)
                 
+                self.logger.info("Successfully copied new installation to main directory")
+                
+                # Clean up the clone directory
+                shutil.rmtree(clone_dir)
+                
+            except Exception as e:
+                self.logger.error(f"Failed to install new version: {e}")
                 await update_message.edit(content=f"❌ Failed to install new version:\n```\n{str(e)}\n```")
                 return
             
@@ -144,7 +199,7 @@ class UpdateCog(BaseCog):
             venv_dir = os.path.join(home_dir, "venv")
             if os.path.exists(venv_dir):
                 pip_path = os.path.join(venv_dir, "bin", "pip")
-                requirements_path = os.path.join(os.path.dirname(current_dir), "retardibot", "requirements.txt")
+                requirements_path = os.path.join(current_dir, "requirements.txt")
                 
                 if os.path.exists(requirements_path):
                     try:
@@ -160,6 +215,8 @@ class UpdateCog(BaseCog):
                             error_message = stderr.decode('utf-8')
                             self.logger.error(f"Failed to install requirements: {error_message}")
                             # Continue anyway, as the old requirements might still work
+                        else:
+                            self.logger.info("Requirements installed successfully")
                     except Exception as e:
                         self.logger.error(f"Error installing requirements: {e}")
                         # Continue anyway
@@ -174,9 +231,9 @@ class UpdateCog(BaseCog):
             # Restart the bot
             python = sys.executable
             venv_python = os.path.join(venv_dir, "bin", "python")
-            bot_script = os.path.join(os.path.dirname(current_dir), "retardibot", "bot.py")
+            bot_script = os.path.join(current_dir, "bot.py")
             
-            if os.path.exists(venv_python):
+            if os.path.exists(venv_python) and os.path.isfile(venv_python):
                 python = venv_python
             
             self.logger.info(f"Restarting bot using {python} {bot_script}")
@@ -185,6 +242,7 @@ class UpdateCog(BaseCog):
             subprocess.Popen([python, bot_script])
             
             # Close the current bot instance
+            await ctx.send("Bot is restarting. I'll be back in a moment!")
             await self.bot.close()
             
         except Exception as e:
