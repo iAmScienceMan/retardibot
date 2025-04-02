@@ -40,6 +40,60 @@ class UpdateCog(BaseCog):
         else:
             await ctx.send(f"Unknown action: `{action}`. Available actions: `update`")
     
+    def find_bot_root(self):
+        """Find the bot's root directory by searching for bot.py"""
+        # Start with the directory of this file
+        current_path = os.path.abspath(__file__)
+        
+        # Get the current working directory as a fallback
+        cwd = os.getcwd()
+        
+        # Log the starting points
+        self.logger.info(f"Starting directory search from: {current_path}")
+        self.logger.info(f"Current working directory: {cwd}")
+        
+        # First check: Is bot.py in the current working directory?
+        if os.path.exists(os.path.join(cwd, "bot.py")):
+            self.logger.info(f"Found bot.py in current working directory")
+            return cwd
+        
+        # Start from this file's directory and work upwards
+        while True:
+            # Get the directory containing the current path
+            dir_path = os.path.dirname(current_path)
+            
+            # If we're at the root directory, stop searching
+            if dir_path == current_path:
+                break
+                
+            # Check if bot.py exists in this directory
+            if os.path.exists(os.path.join(dir_path, "bot.py")):
+                self.logger.info(f"Found bot.py in: {dir_path}")
+                return dir_path
+                
+            # Move up one directory
+            current_path = dir_path
+            
+            # Avoid infinite loops by checking if we've reached the filesystem root
+            if dir_path == os.path.dirname(dir_path):
+                break
+        
+        # Alternative approach: Search common locations
+        possible_paths = [
+            os.path.expanduser("~/retardibot"),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(os.path.join(path, "bot.py")):
+                self.logger.info(f"Found bot.py in: {path}")
+                return path
+        
+        # If we get here, we couldn't find the bot directory
+        return None
+    
     async def update_bot(self, ctx):
         """Updates the bot from GitHub"""
         # Check if running on Linux
@@ -51,22 +105,24 @@ class UpdateCog(BaseCog):
         update_message = await ctx.send("🔄 Starting update process...")
         
         try:
-            # Get the correct bot directory
-            # Find the actual bot root directory by looking for bot.py
-            script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            # Find the bot root directory
+            current_dir = self.find_bot_root()
             
-            # Verify we have the correct directory by checking for bot.py
-            if not os.path.exists(os.path.join(script_dir, "bot.py")):
-                # Try one level up
-                script_dir = os.path.dirname(script_dir)
-                if not os.path.exists(os.path.join(script_dir, "bot.py")):
-                    await update_message.edit(content="❌ Error: Unable to find bot.py in the expected directory structure.")
-                    return
+            if not current_dir:
+                await update_message.edit(content="❌ Error: Unable to find bot.py. Please run this command from the bot's directory.")
+                return
+                
+            self.logger.info(f"Bot root directory: {current_dir}")
             
-            current_dir = script_dir
-            
-            # Log the directories for debugging
-            self.logger.info(f"Current bot directory: {current_dir}")
+            # Print the directory structure for debugging
+            self.logger.info("Directory structure:")
+            for root, dirs, files in os.walk(current_dir, topdown=True, followlinks=False):
+                level = root.replace(current_dir, '').count(os.sep)
+                indent = ' ' * 4 * level
+                self.logger.info(f"{indent}{os.path.basename(root)}/")
+                sub_indent = ' ' * 4 * (level + 1)
+                for f in files:
+                    self.logger.info(f"{sub_indent}{f}")
             
             # Safety check to prevent operating on system directories
             risky_dirs = ["/", "/root", "/home", "/etc", "/usr", "/var"]
@@ -127,73 +183,83 @@ class UpdateCog(BaseCog):
             else:
                 self.logger.warning("config.toml file not found in current installation")
             
-            # Step 3: Move old installation to backup
+            # Step 3: Create backup
             await self.update_status(update_message, "3️⃣ Creating backup of current installation...")
             
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_path = os.path.join(backup_dir, f"retardibot_{timestamp}")
             
             try:
-                parent_dir = os.path.dirname(current_dir)
-                bot_dir_name = os.path.basename(current_dir)
-                
-                # Log the move operation details
-                self.logger.info(f"Moving {current_dir} to {backup_path}")
-                
-                # First, create the backup directory
+                # Create backup directory
                 os.makedirs(backup_path, exist_ok=True)
                 
-                # Copy files instead of moving to avoid issues
+                # Copy all files from current directory to backup
                 for item in os.listdir(current_dir):
-                    src = os.path.join(current_dir, item)
-                    dst = os.path.join(backup_path, item)
-                    if os.path.isdir(src):
-                        shutil.copytree(src, dst)
+                    s = os.path.join(current_dir, item)
+                    d = os.path.join(backup_path, item)
+                    if os.path.isdir(s):
+                        shutil.copytree(s, d, dirs_exist_ok=True)
                     else:
-                        shutil.copy2(src, dst)
+                        shutil.copy2(s, d)
                 
-                self.logger.info(f"Successfully copied current installation to {backup_path}")
+                self.logger.info(f"Created backup at {backup_path}")
                 
-                # Remove old directory contents but keep the directory itself
+            except Exception as e:
+                self.logger.error(f"Failed to create backup: {e}")
+                await update_message.edit(content=f"❌ Failed to create backup:\n```\n{str(e)}\n```")
+                return
+                
+            # Step 4: Remove contents of current directory (except for hidden files)
+            await self.update_status(update_message, "4️⃣ Preparing for new version...")
+            
+            try:
                 for item in os.listdir(current_dir):
+                    # Skip hidden files/dirs to avoid removing .git
+                    if item.startswith('.'):
+                        continue
+                        
                     path = os.path.join(current_dir, item)
                     if os.path.isdir(path):
                         shutil.rmtree(path)
                     else:
                         os.remove(path)
-                
-                self.logger.info("Cleared current installation directory")
+                        
+                self.logger.info("Cleared current directory for update")
                 
             except Exception as e:
-                self.logger.error(f"Failed to backup current installation: {e}")
-                await update_message.edit(content=f"❌ Failed to backup current installation:\n```\n{str(e)}\n```")
+                self.logger.error(f"Failed to clear current directory: {e}")
+                await update_message.edit(content=f"❌ Failed to prepare for new version:\n```\n{str(e)}\n```")
                 return
-            
-            # Step 4: Copy new installation to main directory
-            await self.update_status(update_message, "4️⃣ Installing new version...")
+                
+            # Step 5: Copy new version to current directory
+            await self.update_status(update_message, "5️⃣ Installing new version...")
             
             try:
-                # Copy everything from clone_dir to current_dir
                 for item in os.listdir(clone_dir):
-                    src = os.path.join(clone_dir, item)
-                    dst = os.path.join(current_dir, item)
-                    if os.path.isdir(src):
-                        shutil.copytree(src, dst)
+                    s = os.path.join(clone_dir, item)
+                    d = os.path.join(current_dir, item)
+                    if os.path.isdir(s):
+                        shutil.copytree(s, d, dirs_exist_ok=True)
                     else:
-                        shutil.copy2(src, dst)
-                
-                self.logger.info("Successfully copied new installation to main directory")
-                
-                # Clean up the clone directory
-                shutil.rmtree(clone_dir)
+                        shutil.copy2(s, d)
+                        
+                self.logger.info("Copied new version to current directory")
                 
             except Exception as e:
                 self.logger.error(f"Failed to install new version: {e}")
                 await update_message.edit(content=f"❌ Failed to install new version:\n```\n{str(e)}\n```")
                 return
+                
+            # Step 6: Clean up and install dependencies
+            await self.update_status(update_message, "6️⃣ Installing dependencies...")
             
-            # Step 5: Install requirements and restart bot
-            await self.update_status(update_message, "5️⃣ Installing dependencies and restarting...")
+            # Clean up clone directory
+            try:
+                shutil.rmtree(clone_dir)
+                self.logger.info("Cleaned up temporary files")
+            except Exception as e:
+                self.logger.warning(f"Failed to clean up temporary files: {e}")
+                # Continue anyway
             
             # Install requirements
             venv_dir = os.path.join(home_dir, "venv")
