@@ -181,7 +181,11 @@ def load_cogs():
             # Skip base_cog as it is an abstract class
             if (filename == "base_cog.py"):
                 continue
-                
+            
+            # Skip automod because too expensive :sob:
+            if (filename == "automod.py"):
+                continue
+
             # Convert file path to module path
             module_path = os.path.relpath(path, os.path.dirname(__file__)).replace(os.sep, '.')[:-3]  # Remove .py
                 
