@@ -20,10 +20,14 @@ class BotLoyaltyCog(BaseCog):
         # Common bot prefixes to watch for
         self.common_bot_prefixes = ["!", "?", ".", "-", "$", "~", ";", ">", "<", "|", "+"]
         
+        # Create a proper regex pattern that escapes the dash to avoid "bad character range" error
+        bot_prefixes_pattern = ''.join([re.escape(p) for p in self.common_bot_prefixes])
+        mod_keywords_pattern = '|'.join(self.mod_command_keywords)
+        
         # Regex patterns for detecting bot commands
         self.command_patterns = [
-            re.compile(fr"^[{''.join(self.common_bot_prefixes)}](?:{('|').join(self.mod_command_keywords)})\b", re.IGNORECASE),  # Prefix commands like !ban
-            re.compile(fr"^/(?:{('|').join(self.mod_command_keywords)})\b", re.IGNORECASE)  # Slash commands like /ban
+            re.compile(fr"^[{bot_prefixes_pattern}](?:{mod_keywords_pattern})\b", re.IGNORECASE),  # Prefix commands like !ban
+            re.compile(fr"^/(?:{mod_keywords_pattern})\b", re.IGNORECASE)  # Slash commands like /ban
         ]
         
         # Get owner_id from config
