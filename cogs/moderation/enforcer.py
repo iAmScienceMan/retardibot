@@ -44,11 +44,15 @@ class BotLoyaltyCog(BaseCog):
         # Detainee role ID used by other bots for muting
         self.detainee_role_id = 1342693546511040555
         
+        # Role checking wait settings
+        self.role_check_attempts = 10  # Number of attempts to check for the role
+        self.role_check_delay = 1.0  # Delay in seconds between checks
+        
         # Debug mode - can be toggled with a command
-        self.debug_mode = False
+        self.debug_mode = True
         
         # Testing mode - if True, will apply to owner as well (for testing)
-        self.test_owner_too = False
+        self.test_owner_too = True
         
         self.logger.info(f"Bot Loyalty cog initialized, protecting {len(self.mod_command_keywords)} command types")
         self.logger.info(f"Owner ID: {self.owner_id}, Alert Channel ID: {self.alert_channel_id}")
@@ -57,7 +61,7 @@ class BotLoyaltyCog(BaseCog):
     
     def has_staff_permissions(self, member):
         """Check if a member has staff permissions based on roles or admin permissions"""
-        if not member or not member.guild:
+        if not member:
             return False
             
         # Check for admin permissions
@@ -117,6 +121,42 @@ class BotLoyaltyCog(BaseCog):
             self.logger.debug(f"Message '{message.content}' from {message.author.id} does not appear to be a command for another bot")
         return False
     
+    async def wait_for_role_and_remove(self, member, role, channel):
+        """Wait for a role to be applied and then remove it"""
+        self.logger.debug(f"Starting role wait-and-remove process for user {member.id}")
+        
+        # If the member already has the role, remove it immediately
+        if role in member.roles:
+            self.logger.debug(f"User {member.id} already has the role, removing immediately")
+            await member.remove_roles(role, reason="Reversed mute from unauthorized bot usage")
+            await channel.send(f"Reversed mute for {member.mention} (detainee role removed)")
+            return True
+            
+        # Otherwise, wait and check for the role
+        self.logger.debug(f"User {member.id} doesn't have the role yet, starting wait loop")
+        
+        for attempt in range(1, self.role_check_attempts + 1):
+            self.logger.debug(f"Role check attempt {attempt}/{self.role_check_attempts} for user {member.id}")
+            
+            # Wait for a short time
+            await asyncio.sleep(self.role_check_delay)
+            
+            # Refresh member data to get current roles
+            try:
+                # We need to fetch the member again to get updated role info
+                updated_member = await member.guild.fetch_member(member.id)
+                
+                if role in updated_member.roles:
+                    self.logger.debug(f"Role found on attempt {attempt} for user {member.id}, removing it")
+                    await updated_member.remove_roles(role, reason="Reversed mute from unauthorized bot usage")
+                    await channel.send(f"Reversed mute for {member.mention} (detainee role removed after {attempt} attempt{'s' if attempt > 1 else ''})")
+                    return True
+            except Exception as e:
+                self.logger.error(f"Error checking/removing role on attempt {attempt}: {e}")
+        
+        self.logger.debug(f"Role not found after {self.role_check_attempts} attempts for user {member.id}")
+        return False
+    
     async def try_reverse_mod_action(self, message, guild):
         """Attempt to reverse any moderation action that might have been performed"""
         # Extract potential user IDs from the message
@@ -167,27 +207,25 @@ class BotLoyaltyCog(BaseCog):
                 try:
                     member = guild.get_member(user_id)
                     if member:
-                        reverse_actions = []
+                        timeout_removed = False
                         
                         # Check and remove timeout if present
                         if member.timed_out_until:
                             self.logger.debug(f"User {user_id} is timed out until {member.timed_out_until}, removing timeout")
                             await member.timeout(None, reason="Reversed timeout from unauthorized bot usage")
-                            reverse_actions.append("timeout removed")
-                            
-                        # Check and remove detainee role if present
-                        if detainee_role and detainee_role in member.roles:
-                            self.logger.debug(f"User {user_id} has detainee role, removing it")
-                            await member.remove_roles(detainee_role, reason="Reversed mute from unauthorized bot usage")
-                            reverse_actions.append("detainee role removed")
-                        
-                        if reverse_actions:
-                            actions_str = " and ".join(reverse_actions)
-                            await message.channel.send(f"Reversed mute for {member.mention} ({actions_str})")
-                            self.logger.info(f"Reversed mute actions for user {member.id}: {actions_str}")
+                            await message.channel.send(f"Reversed timeout for {member.mention}")
+                            self.logger.info(f"Reversed timeout for user {member.id}")
+                            timeout_removed = True
                             actions_reversed = True
-                        else:
-                            self.logger.debug(f"User {user_id} is not muted or timed out, no action needed")
+                            
+                        # Start a task to wait for and remove the detainee role
+                        if detainee_role:
+                            # We'll start this as a background task so we don't hold up the rest of the function
+                            asyncio.create_task(self.wait_for_role_and_remove(member, detainee_role, message.channel))
+                            actions_reversed = True
+                            
+                        if not timeout_removed and not detainee_role:
+                            self.logger.debug(f"User {user_id} is not muted or timed out, and no detainee role exists")
                     else:
                         self.logger.debug(f"Could not find member with ID {user_id} in guild")
                 except Exception as e:
@@ -293,8 +331,8 @@ class BotLoyaltyCog(BaseCog):
                 # Try to reverse any moderation actions
                 reversed = await self.try_reverse_mod_action(message, message.guild)
                 if reversed:
-                    actions_taken.append("Reversed moderation action(s)")
-                    self.logger.debug("Successfully reversed one or more moderation actions")
+                    actions_taken.append("Initiated reversal of moderation action(s)")
+                    self.logger.debug("Initiated reversal of moderation actions")
                 
                 # Log the warning using moderation cog if available
                 try:
@@ -345,6 +383,7 @@ class BotLoyaltyCog(BaseCog):
         embed.add_field(name="Alert Channel", value=f"<#{self.alert_channel_id}>" if self.alert_channel_id else "None", inline=True)
         embed.add_field(name="Staff Role", value=f"<@&{self.staff_role_id}>", inline=True)
         embed.add_field(name="Detainee Role", value=f"<@&{self.detainee_role_id}>", inline=True)
+        embed.add_field(name="Role Check Settings", value=f"{self.role_check_attempts} attempts, {self.role_check_delay}s delay", inline=True)
         
         await ctx.send(embed=embed)
     
@@ -373,6 +412,19 @@ class BotLoyaltyCog(BaseCog):
             
         await ctx.send(f"Test owner mode {'enabled' if self.test_owner_too else 'disabled'}")
         self.logger.info(f"Test owner mode set to {self.test_owner_too} by {ctx.author.id}")
+    
+    @loyalty_group.command(name="rolecheck")
+    @commands.is_owner()
+    async def loyalty_role_check(self, ctx, attempts: int = None, delay: float = None):
+        """Set role check attempts and delay (in seconds)"""
+        if attempts is not None:
+            self.role_check_attempts = max(1, min(attempts, 20))  # Between 1 and 20
+            
+        if delay is not None:
+            self.role_check_delay = max(0.5, min(delay, 5.0))  # Between 0.5 and 5 seconds
+            
+        await ctx.send(f"Role check settings updated: {self.role_check_attempts} attempts with {self.role_check_delay}s delay")
+        self.logger.info(f"Role check settings updated: {self.role_check_attempts} attempts, {self.role_check_delay}s delay")
     
     @loyalty_group.command(name="test")
     @commands.is_owner()
