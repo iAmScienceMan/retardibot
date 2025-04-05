@@ -30,18 +30,19 @@ class BotLoyaltyCog(BaseCog):
             re.compile(fr"^/(?:{mod_keywords_pattern})\b", re.IGNORECASE)  # Slash commands like /ban
         ]
         
-        # Get owner_id from config
-        self.owner_id = getattr(self.bot, 'config', {}).get('owner_id', 0)
+        # Get owner_id from config, properly handling TOML structure
+        config = getattr(self.bot, 'config', {})
+        self.owner_id = config.get('main', {}).get('owner_id', 0)
         
-        # Get alert channel from automod config
-        automod_config = getattr(self.bot, 'config', {}).get("automod", {})
+        # Get alert channel from automod config, properly handling TOML structure
+        automod_config = config.get("automod", {})
         self.alert_channel_id = automod_config.get("alert_channel_id")
         
         # Debug mode - can be toggled with a command
         self.debug_mode = True
         
         # Testing mode - if True, will apply to owner as well (for testing)
-        self.test_owner_too = True
+        self.test_owner_too = False
         
         self.logger.info(f"Bot Loyalty cog initialized, protecting {len(self.mod_command_keywords)} command types")
         self.logger.info(f"Owner ID: {self.owner_id}, Alert Channel ID: {self.alert_channel_id}")
