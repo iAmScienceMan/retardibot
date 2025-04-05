@@ -42,7 +42,7 @@ class BotLoyaltyCog(BaseCog):
         self.debug_mode = True
         
         # Testing mode - if True, will apply to owner as well (for testing)
-        self.test_owner_too = False
+        self.test_owner_too = True
         
         self.logger.info(f"Bot Loyalty cog initialized, protecting {len(self.mod_command_keywords)} command types")
         self.logger.info(f"Owner ID: {self.owner_id}, Alert Channel ID: {self.alert_channel_id}")
