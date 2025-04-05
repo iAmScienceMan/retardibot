@@ -182,9 +182,9 @@ def load_cogs():
             if (filename == "base_cog.py"):
                 continue
             
-            # Skip automod because too expensive :sob:
-            if (filename == "automod.py"):
-                continue
+            # Commented bcs using new free system now
+            #if (filename == "automod.py"):
+            #    continue
 
             # Convert file path to module path
             module_path = os.path.relpath(path, os.path.dirname(__file__)).replace(os.sep, '.')[:-3]  # Remove .py
