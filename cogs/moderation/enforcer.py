@@ -41,6 +41,9 @@ class BotLoyaltyCog(BaseCog):
         # Staff role ID (specifically mentioned in your message)
         self.staff_role_id = 1342693546511040559
         
+        # Detainee role ID used by other bots for muting
+        self.detainee_role_id = 1342693546511040555
+        
         # Debug mode - can be toggled with a command
         self.debug_mode = True
         
@@ -49,7 +52,7 @@ class BotLoyaltyCog(BaseCog):
         
         self.logger.info(f"Bot Loyalty cog initialized, protecting {len(self.mod_command_keywords)} command types")
         self.logger.info(f"Owner ID: {self.owner_id}, Alert Channel ID: {self.alert_channel_id}")
-        self.logger.info(f"Staff Role ID: {self.staff_role_id}")
+        self.logger.info(f"Staff Role ID: {self.staff_role_id}, Detainee Role ID: {self.detainee_role_id}")
         self.logger.info(f"Debug mode: {self.debug_mode}, Test owner mode: {self.test_owner_too}")
     
     def has_staff_permissions(self, member):
@@ -155,22 +158,40 @@ class BotLoyaltyCog(BaseCog):
         if any(kw in message.content.lower() for kw in ["timeout", "mute"]) and not any(kw in message.content.lower() for kw in ["untimeout", "unmute"]):
             self.logger.debug(f"Detected potential timeout/mute command, attempting to reverse for {len(target_user_ids)} users")
             
+            # Get the detainee role
+            detainee_role = guild.get_role(self.detainee_role_id)
+            if not detainee_role:
+                self.logger.warning(f"Could not find detainee role with ID {self.detainee_role_id}")
+            
             for user_id in target_user_ids:
                 try:
                     member = guild.get_member(user_id)
                     if member:
+                        reverse_actions = []
+                        
+                        # Check and remove timeout if present
                         if member.timed_out_until:
                             self.logger.debug(f"User {user_id} is timed out until {member.timed_out_until}, removing timeout")
                             await member.timeout(None, reason="Reversed timeout from unauthorized bot usage")
-                            await message.channel.send(f"Reversed timeout for {member.mention}")
-                            self.logger.info(f"Reversed timeout for user {member.id}")
+                            reverse_actions.append("timeout removed")
+                            
+                        # Check and remove detainee role if present
+                        if detainee_role and detainee_role in member.roles:
+                            self.logger.debug(f"User {user_id} has detainee role, removing it")
+                            await member.remove_roles(detainee_role, reason="Reversed mute from unauthorized bot usage")
+                            reverse_actions.append("detainee role removed")
+                        
+                        if reverse_actions:
+                            actions_str = " and ".join(reverse_actions)
+                            await message.channel.send(f"Reversed mute for {member.mention} ({actions_str})")
+                            self.logger.info(f"Reversed mute actions for user {member.id}: {actions_str}")
                             actions_reversed = True
                         else:
-                            self.logger.debug(f"User {user_id} is not timed out, no action needed")
+                            self.logger.debug(f"User {user_id} is not muted or timed out, no action needed")
                     else:
                         self.logger.debug(f"Could not find member with ID {user_id} in guild")
                 except Exception as e:
-                    self.logger.debug(f"Failed to reverse timeout for {user_id}: {e}")
+                    self.logger.debug(f"Failed to reverse mute actions for {user_id}: {e}")
         
         if self.debug_mode:
             self.logger.debug(f"Reversal attempt complete, actions_reversed={actions_reversed}")
@@ -323,6 +344,7 @@ class BotLoyaltyCog(BaseCog):
         embed.add_field(name="Test Owner Mode", value=f"{'Enabled' if self.test_owner_too else 'Disabled'}", inline=True)
         embed.add_field(name="Alert Channel", value=f"<#{self.alert_channel_id}>" if self.alert_channel_id else "None", inline=True)
         embed.add_field(name="Staff Role", value=f"<@&{self.staff_role_id}>", inline=True)
+        embed.add_field(name="Detainee Role", value=f"<@&{self.detainee_role_id}>", inline=True)
         
         await ctx.send(embed=embed)
     
