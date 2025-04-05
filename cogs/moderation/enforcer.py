@@ -45,10 +45,10 @@ class BotLoyaltyCog(BaseCog):
         self.detainee_role_id = 1342693546511040555
         
         # Debug mode - can be toggled with a command
-        self.debug_mode = True
+        self.debug_mode = False
         
         # Testing mode - if True, will apply to owner as well (for testing)
-        self.test_owner_too = True
+        self.test_owner_too = False
         
         self.logger.info(f"Bot Loyalty cog initialized, protecting {len(self.mod_command_keywords)} command types")
         self.logger.info(f"Owner ID: {self.owner_id}, Alert Channel ID: {self.alert_channel_id}")
