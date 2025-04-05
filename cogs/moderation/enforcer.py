@@ -38,6 +38,9 @@ class BotLoyaltyCog(BaseCog):
         automod_config = config.get("automod", {})
         self.alert_channel_id = automod_config.get("alert_channel_id")
         
+        # Staff role ID (specifically mentioned in your message)
+        self.staff_role_id = 1342693546511040559
+        
         # Debug mode - can be toggled with a command
         self.debug_mode = True
         
@@ -46,7 +49,34 @@ class BotLoyaltyCog(BaseCog):
         
         self.logger.info(f"Bot Loyalty cog initialized, protecting {len(self.mod_command_keywords)} command types")
         self.logger.info(f"Owner ID: {self.owner_id}, Alert Channel ID: {self.alert_channel_id}")
+        self.logger.info(f"Staff Role ID: {self.staff_role_id}")
         self.logger.info(f"Debug mode: {self.debug_mode}, Test owner mode: {self.test_owner_too}")
+    
+    def has_staff_permissions(self, member):
+        """Check if a member has staff permissions based on roles or admin permissions"""
+        if not member or not member.guild:
+            return False
+            
+        # Check for admin permissions
+        if member.guild_permissions.administrator:
+            if self.debug_mode:
+                self.logger.debug(f"User {member.id} has administrator permissions")
+            return True
+            
+        # Check for the specific staff role
+        staff_role = member.guild.get_role(self.staff_role_id)
+        if staff_role and staff_role in member.roles:
+            if self.debug_mode:
+                self.logger.debug(f"User {member.id} has the staff role")
+            return True
+            
+        # Check for mod role using the BaseCog method
+        if self.has_mod_role(member):
+            if self.debug_mode:
+                self.logger.debug(f"User {member.id} has the mod role")
+            return True
+            
+        return False
     
     async def is_message_for_another_bot(self, message):
         """Determine if the message appears to be a command for another bot"""
@@ -200,10 +230,10 @@ class BotLoyaltyCog(BaseCog):
                 self.logger.debug("Skipping DM message")
             return
             
-        # Skip messages from non-mods
-        if not self.has_mod_role(message.author):
+        # Skip messages from non-staff
+        if not self.has_staff_permissions(message.author):
             if self.debug_mode:
-                self.logger.debug(f"Skipping message from non-mod user {message.author.id}")
+                self.logger.debug(f"Skipping message from non-staff user {message.author.id}")
             return
         
         # Check if the user is the bot owner
@@ -292,6 +322,7 @@ class BotLoyaltyCog(BaseCog):
         embed.add_field(name="Debug Mode", value=f"{'Enabled' if self.debug_mode else 'Disabled'}", inline=True)
         embed.add_field(name="Test Owner Mode", value=f"{'Enabled' if self.test_owner_too else 'Disabled'}", inline=True)
         embed.add_field(name="Alert Channel", value=f"<#{self.alert_channel_id}>" if self.alert_channel_id else "None", inline=True)
+        embed.add_field(name="Staff Role", value=f"<@&{self.staff_role_id}>", inline=True)
         
         await ctx.send(embed=embed)
     
