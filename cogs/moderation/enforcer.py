@@ -46,7 +46,7 @@ class BotLoyaltyCog(BaseCog):
         
         # Role checking wait settings
         self.role_check_attempts = 10  # Number of attempts to check for the role
-        self.role_check_delay = 1.0  # Delay in seconds between checks
+        self.role_check_delay = 2.0    # Delay in seconds between checks
         
         # Debug mode - can be toggled with a command
         self.debug_mode = True
@@ -61,7 +61,8 @@ class BotLoyaltyCog(BaseCog):
     
     def has_staff_permissions(self, member):
         """Check if a member has staff permissions based on roles or admin permissions"""
-        if not member:
+        # Safety check - if this is a User not a Member, we don't have guild permissions
+        if not isinstance(member, disnake.Member):
             return False
             
         # Check for admin permissions
@@ -121,9 +122,16 @@ class BotLoyaltyCog(BaseCog):
             self.logger.debug(f"Message '{message.content}' from {message.author.id} does not appear to be a command for another bot")
         return False
     
-    async def wait_for_role_and_remove(self, member, role, channel):
+    async def wait_for_role_and_remove(self, member, role, channel, guild):
         """Wait for a role to be applied and then remove it"""
         self.logger.debug(f"Starting role wait-and-remove process for user {member.id}")
+        
+        # Get updated member object
+        try:
+            member = await guild.fetch_member(member.id)
+        except Exception as e:
+            self.logger.error(f"Error fetching updated member data: {e}")
+            return False
         
         # If the member already has the role, remove it immediately
         if role in member.roles:
@@ -144,13 +152,21 @@ class BotLoyaltyCog(BaseCog):
             # Refresh member data to get current roles
             try:
                 # We need to fetch the member again to get updated role info
-                updated_member = await member.guild.fetch_member(member.id)
+                updated_member = await guild.fetch_member(member.id)
+                
+                self.logger.debug(f"User {member.id} has roles: {[r.id for r in updated_member.roles]}")
+                self.logger.debug(f"Looking for role {role.id} ({role.name})")
                 
                 if role in updated_member.roles:
                     self.logger.debug(f"Role found on attempt {attempt} for user {member.id}, removing it")
-                    await updated_member.remove_roles(role, reason="Reversed mute from unauthorized bot usage")
-                    await channel.send(f"Reversed mute for {member.mention} (detainee role removed after {attempt} attempt{'s' if attempt > 1 else ''})")
-                    return True
+                    try:
+                        await updated_member.remove_roles(role, reason="Reversed mute from unauthorized bot usage")
+                        await channel.send(f"Reversed mute for {member.mention} (detainee role removed after {attempt} attempt{'s' if attempt > 1 else ''})")
+                        return True
+                    except Exception as e:
+                        self.logger.error(f"Error removing role: {e}")
+                        await channel.send(f"Failed to remove role from {member.mention}: {e}")
+                        return False
             except Exception as e:
                 self.logger.error(f"Error checking/removing role on attempt {attempt}: {e}")
         
@@ -202,6 +218,9 @@ class BotLoyaltyCog(BaseCog):
             detainee_role = guild.get_role(self.detainee_role_id)
             if not detainee_role:
                 self.logger.warning(f"Could not find detainee role with ID {self.detainee_role_id}")
+                self.logger.debug(f"Available roles in guild: {[r.id for r in guild.roles]}")
+            else:
+                self.logger.debug(f"Found detainee role: {detainee_role.name} ({detainee_role.id})")
             
             for user_id in target_user_ids:
                 try:
@@ -220,8 +239,13 @@ class BotLoyaltyCog(BaseCog):
                             
                         # Start a task to wait for and remove the detainee role
                         if detainee_role:
-                            # We'll start this as a background task so we don't hold up the rest of the function
-                            asyncio.create_task(self.wait_for_role_and_remove(member, detainee_role, message.channel))
+                            self.logger.debug(f"Starting background task to wait for and remove detainee role for {member.id}")
+                            # Create a separate task that we don't await - it will run in the background
+                            task = asyncio.create_task(
+                                self.wait_for_role_and_remove(member, detainee_role, message.channel, guild)
+                            )
+                            # Add a name to the task to make debugging easier
+                            task.set_name(f"remove_role_{member.id}")
                             actions_reversed = True
                             
                         if not timeout_removed and not detainee_role:
@@ -275,18 +299,23 @@ class BotLoyaltyCog(BaseCog):
     
     @commands.Cog.listener()
     async def on_message(self, message):
-        if self.debug_mode:
-            self.logger.debug(f"Checking message: '{message.content}' from {message.author.id} in guild {message.guild.id if message.guild else 'DM'}")
+        # Skip if not in a guild
+        if not hasattr(message, 'guild') or not message.guild:
+            return
         
-        # Skip messages from our bot or in DMs
+        if self.debug_mode:
+            self.logger.debug(f"Checking message: '{message.content}' from {message.author.id} in guild {message.guild.id}")
+        
+        # Skip messages from our bot
         if message.author.id == self.bot.user.id:
             if self.debug_mode:
                 self.logger.debug("Skipping message from our bot")
             return
-            
-        if not message.guild:
+        
+        # Make sure we're dealing with a Member object
+        if not isinstance(message.author, disnake.Member):
             if self.debug_mode:
-                self.logger.debug("Skipping DM message")
+                self.logger.debug(f"Author is not a Member object, skipping: {message.author}")
             return
             
         # Skip messages from non-staff
