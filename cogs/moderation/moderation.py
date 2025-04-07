@@ -2,73 +2,63 @@ import disnake
 from disnake.ext import commands
 import datetime
 import asyncio
-import sqlite3
-import os
+import json
 from cogs.common.base_cog import BaseCog
+from cogs.common.db_manager import DBManager
 
 class ModerationCog(BaseCog):
     def __init__(self, bot):
         super().__init__(bot)
-        self.db_path = "moderation.db"
-        self._create_tables()
-
-    def _create_tables(self):
-        """Create the necessary tables if they don't exist"""
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
-        
-        # Create a table for all moderation actions
-        c.execute('''
-        CREATE TABLE IF NOT EXISTS mod_actions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            guild_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            moderator_id INTEGER NOT NULL,
-            action_type TEXT NOT NULL,
-            reason TEXT,
-            duration INTEGER,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-        ''')
-        
-        conn.commit()
-        conn.close()
+        self.db = DBManager()
+        # No need to create tables as DBManager handles this
 
     def _add_mod_action(self, guild_id, user_id, moderator_id, action_type, reason=None, duration=None):
         """Add a moderation action to the database"""
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
-        
-        c.execute('''
-        INSERT INTO mod_actions (guild_id, user_id, moderator_id, action_type, reason, duration)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ''', (guild_id, user_id, moderator_id, action_type, reason, duration))
-        
-        conn.commit()
-        conn.close()
+        conn = self.db.get_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute('''
+                INSERT INTO mod_actions (guild_id, user_id, moderator_id, action_type, reason, duration)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ''', (guild_id, user_id, moderator_id, action_type, reason, duration))
+                
+                conn.commit()
+        except Exception as e:
+            conn.rollback()
+            self.logger.error(f"Database error in _add_mod_action: {e}")
+        finally:
+            self.db.release_connection(conn)
 
     def _get_user_history(self, guild_id, user_id, action_type=None):
         """Get a user's moderation history, optionally filtered by action type"""
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row  # This allows us to access columns by name
-        c = conn.cursor()
+        conn = self.db.get_connection()
+        results = []
         
-        if action_type:
-            c.execute('''
-            SELECT * FROM mod_actions 
-            WHERE guild_id = ? AND user_id = ? AND action_type = ?
-            ORDER BY timestamp DESC
-            ''', (guild_id, user_id, action_type))
-        else:
-            c.execute('''
-            SELECT * FROM mod_actions 
-            WHERE guild_id = ? AND user_id = ?
-            ORDER BY timestamp DESC
-            ''', (guild_id, user_id))
+        try:
+            with conn.cursor() as cursor:
+                if action_type:
+                    cursor.execute('''
+                    SELECT * FROM mod_actions 
+                    WHERE guild_id = %s AND user_id = %s AND action_type = %s
+                    ORDER BY timestamp DESC
+                    ''', (guild_id, user_id, action_type))
+                else:
+                    cursor.execute('''
+                    SELECT * FROM mod_actions 
+                    WHERE guild_id = %s AND user_id = %s
+                    ORDER BY timestamp DESC
+                    ''', (guild_id, user_id))
+                    
+                # Convert to dictionary format for compatibility
+                columns = [desc[0] for desc in cursor.description]
+                for row in cursor.fetchall():
+                    results.append(dict(zip(columns, row)))
+                    
+        except Exception as e:
+            self.logger.error(f"Database error in _get_user_history: {e}")
+        finally:
+            self.db.release_connection(conn)
             
-        results = c.fetchall()
-        conn.close()
-        
         return results
 
     @commands.command()
@@ -247,17 +237,26 @@ class ModerationCog(BaseCog):
     @commands.has_permissions(manage_messages=True)
     async def clearwarns(self, ctx, member: disnake.Member):
         """Clear all warnings for a member"""
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
+        conn = self.db.get_connection()
+        deleted_rows = 0
         
-        c.execute('''
-        DELETE FROM mod_actions
-        WHERE guild_id = ? AND user_id = ? AND action_type = 'WARN'
-        ''', (ctx.guild.id, member.id))
-        
-        deleted_rows = c.rowcount
-        conn.commit()
-        conn.close()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute('''
+                DELETE FROM mod_actions
+                WHERE guild_id = %s AND user_id = %s AND action_type = 'WARN'
+                ''', (ctx.guild.id, member.id))
+                
+                deleted_rows = cursor.rowcount
+                conn.commit()
+                
+        except Exception as e:
+            conn.rollback()
+            self.logger.error(f"Database error in clearwarns: {e}")
+            await ctx.send(f"❌ An error occurred: {e}")
+            return
+        finally:
+            self.db.release_connection(conn)
         
         if deleted_rows > 0:
             await ctx.send(f"✅ Cleared {deleted_rows} warnings from **{member}**")
@@ -364,11 +363,18 @@ class ModerationCog(BaseCog):
                     
                     duration_str = f" for {duration_str.strip()}"
                 
+                # Format timestamp - PostgreSQL returns datetime objects
+                timestamp = action['timestamp']
+                if hasattr(timestamp, 'strftime'):
+                    timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    timestamp_str = str(timestamp)
+                
                 embed.add_field(
                     name=f"{i}. {action['action_type']}{duration_str}",
                     value=f"**Reason:** {action['reason'] or 'No reason provided'}\n" + 
                         f"**By:** {moderator}\n" +
-                        f"**Date:** {action['timestamp']}",
+                        f"**Date:** {timestamp_str}",
                     inline=False
                 )
         

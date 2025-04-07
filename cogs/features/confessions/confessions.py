@@ -1,123 +1,109 @@
 import disnake
 from disnake.ext import commands
 from cogs.common.base_cog import BaseCog
-import sqlite3
+from cogs.common.db_manager import DBManager
 import datetime
+import json
 
 class ConfessionsCog(BaseCog):
     def __init__(self, bot):
         super().__init__(bot)
         config = getattr(self.bot, 'config', {})
         self.confession_channel_id = config.get("confession_channel_id")
-        self.db_path = "confessions.db"
-        self._create_tables()
-        
-    def _create_tables(self):
-        """Create the necessary database tables if they don't exist"""
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
-        
-        # Table for storing confessions
-        c.execute('''
-        CREATE TABLE IF NOT EXISTS confessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            message_id INTEGER,
-            user_id INTEGER NOT NULL,
-            content TEXT NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            is_deleted INTEGER DEFAULT 0
-        )
-        ''')
-        
-        # Table for banned users
-        c.execute('''
-        CREATE TABLE IF NOT EXISTS confession_bans (
-            user_id INTEGER PRIMARY KEY,
-            banned_by INTEGER NOT NULL,
-            reason TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-        ''')
-        
-        conn.commit()
-        conn.close()
-        self.logger.info("Confession database initialized")
+        self.db = DBManager()
+        self.logger.info("Confession system initialized with PostgreSQL")
     
     def _is_user_banned(self, user_id):
         """Check if a user is banned from using confessions"""
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
-        
-        c.execute('SELECT user_id FROM confession_bans WHERE user_id = ?', (user_id,))
-        result = c.fetchone()
-        
-        conn.close()
-        return result is not None
+        conn = self.db.get_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute('SELECT user_id FROM confession_bans WHERE user_id = %s', (user_id,))
+                result = cursor.fetchone()
+                return result is not None
+        finally:
+            self.db.release_connection(conn)
     
     def _ban_user(self, user_id, mod_id, reason=None):
         """Ban a user from using confessions"""
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
-        
-        c.execute('''
-        INSERT OR REPLACE INTO confession_bans (user_id, banned_by, reason, timestamp)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        ''', (user_id, mod_id, reason))
-        
-        conn.commit()
-        conn.close()
+        conn = self.db.get_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute('''
+                INSERT INTO confession_bans (user_id, banned_by, reason, timestamp)
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    banned_by = EXCLUDED.banned_by,
+                    reason = EXCLUDED.reason,
+                    timestamp = CURRENT_TIMESTAMP
+                ''', (user_id, mod_id, reason))
+                conn.commit()
+        except Exception as e:
+            conn.rollback()
+            self.logger.error(f"Error banning user: {e}")
+        finally:
+            self.db.release_connection(conn)
     
     def _save_confession(self, user_id, content):
         """Save a confession to the database and return its ID"""
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
-        
-        c.execute('''
-        INSERT INTO confessions (user_id, content, timestamp)
-        VALUES (?, ?, CURRENT_TIMESTAMP)
-        ''', (user_id, content))
-        
-        confession_id = c.lastrowid
-        
-        conn.commit()
-        conn.close()
-        
-        return confession_id
+        conn = self.db.get_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute('''
+                INSERT INTO confessions (user_id, content, timestamp)
+                VALUES (%s, %s, CURRENT_TIMESTAMP)
+                RETURNING id
+                ''', (user_id, content))
+                confession_id = cursor.fetchone()[0]
+                conn.commit()
+                return confession_id
+        except Exception as e:
+            conn.rollback()
+            self.logger.error(f"Error saving confession: {e}")
+            return None
+        finally:
+            self.db.release_connection(conn)
     
     def _update_message_id(self, confession_id, message_id):
         """Update the message ID for a confession"""
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
-        
-        c.execute('''
-        UPDATE confessions SET message_id = ? WHERE id = ?
-        ''', (message_id, confession_id))
-        
-        conn.commit()
-        conn.close()
+        conn = self.db.get_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute('''
+                UPDATE confessions SET message_id = %s WHERE id = %s
+                ''', (message_id, confession_id))
+                conn.commit()
+        except Exception as e:
+            conn.rollback()
+            self.logger.error(f"Error updating message ID: {e}")
+        finally:
+            self.db.release_connection(conn)
     
     def _mark_deleted(self, message_id):
         """Mark a confession as deleted"""
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
-        
-        c.execute('''
-        UPDATE confessions SET is_deleted = 1 WHERE message_id = ?
-        ''', (message_id,))
-        
-        conn.commit()
-        conn.close()
+        conn = self.db.get_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute('''
+                UPDATE confessions SET is_deleted = TRUE WHERE message_id = %s
+                ''', (message_id,))
+                conn.commit()
+        except Exception as e:
+            conn.rollback()
+            self.logger.error(f"Error marking confession as deleted: {e}")
+        finally:
+            self.db.release_connection(conn)
     
     def _get_user_id_from_message(self, message_id):
         """Get the user ID associated with a confession message"""
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
-        
-        c.execute('SELECT user_id FROM confessions WHERE message_id = ?', (message_id,))
-        result = c.fetchone()
-        
-        conn.close()
-        return result[0] if result else None
+        conn = self.db.get_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute('SELECT user_id FROM confessions WHERE message_id = %s', (message_id,))
+                result = cursor.fetchone()
+                return result[0] if result else None
+        finally:
+            self.db.release_connection(conn)
     
     @commands.slash_command(
         name="confess",
@@ -149,6 +135,9 @@ class ConfessionsCog(BaseCog):
         
         # Save confession to database
         confession_id = self._save_confession(inter.author.id, message)
+        if confession_id is None:
+            self.logger.error(f"Failed to save confession for user {inter.author.id}")
+            return
         
         # Create the confession embed
         embed = disnake.Embed(
@@ -171,7 +160,7 @@ class ConfessionsCog(BaseCog):
                 # Check if user has mod role
                 mod_role_id = getattr(self.cog.bot, 'config', {}).get("automod", {}).get("mod_role_id")
                 if not mod_role_id:
-                    return await interaction.response.send_message("Critical error encountered.", ephemeral=True); self.bot.dev_logger.critical("MOD ROLE ID NOT SPECIFIED"); exit(1)
+                    return await interaction.response.send_message("Critical error encountered.", ephemeral=True)
                 
                 mod_role = interaction.guild.get_role(mod_role_id)
                 if not mod_role or mod_role not in interaction.user.roles:
@@ -185,7 +174,7 @@ class ConfessionsCog(BaseCog):
                 # Mark as deleted in database
                 self.cog._mark_deleted(interaction.message.id)
 
-                self.logger.info(f"Deleted confession #{confession_id} sent by user {inter.author.id} - '{message}'")
+                self.logger.info(f"Deleted confession #{confession_id} sent by user {inter.author.id}")
                 
                 await interaction.response.edit_message(embed=embed)
                 await interaction.followup.send("Confession deleted.", ephemeral=True)
@@ -195,7 +184,7 @@ class ConfessionsCog(BaseCog):
                 # Check if user has mod role
                 mod_role_id = getattr(self.cog.bot, 'config', {}).get("automod", {}).get("mod_role_id")
                 if not mod_role_id:
-                    return await interaction.response.send_message("Critical error encountered.", ephemeral=True); self.bot.dev_logger.critical("MOD ROLE ID NOT SPECIFIED"); exit(1)
+                    return await interaction.response.send_message("Critical error encountered.", ephemeral=True)
                 
                 mod_role = interaction.guild.get_role(mod_role_id)
                 if not mod_role or mod_role not in interaction.user.roles:
@@ -216,7 +205,7 @@ class ConfessionsCog(BaseCog):
                     embed.color = disnake.Color.dark_gray()
                     self.cog._mark_deleted(interaction.message.id)
 
-                self.logger.info(f"Banned user {inter.author.id} - '{message}', removed confession #{confession_id}")
+                self.logger.info(f"Banned user {inter.author.id}, removed confession #{confession_id}")
                 
                 await interaction.response.edit_message(embed=embed)
                 await interaction.followup.send(f"User (ID: {user_id}) has been banned from sending confessions.", ephemeral=True)
@@ -228,7 +217,7 @@ class ConfessionsCog(BaseCog):
         # Update the message ID in the database
         self._update_message_id(confession_id, confession_message.id)
         
-        self.logger.info(f"Confession #{confession_id} sent by user {inter.author.id} - '{message}'")
+        self.logger.info(f"Confession #{confession_id} sent by user {inter.author.id}")
 
 def setup(bot):
     bot.add_cog(ConfessionsCog(bot))

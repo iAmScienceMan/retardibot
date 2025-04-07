@@ -29,7 +29,7 @@ except FileNotFoundError:
 
 # After loading config and before creating the bot
 our_owner_id = config.get('main', {}).get('owner_id', 587208453018091538)
-print(f"Setting owner ID to: {our_owner_id}")
+print(f"Setting owner ID to: {our_owner_id}")~
 
 # Setup Discord bot
 intents = disnake.Intents.all()
