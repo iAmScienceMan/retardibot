@@ -181,6 +181,10 @@ def load_cogs():
             # Skip base_cog as it is an abstract class
             if (filename == "base_cog.py"):
                 continue
+
+            # Skip updatecog until fixed to work with PostgreSQL
+            if (filename == "updatecog.py"):
+                continue
             
             # Commented bcs using new free system now
             #if (filename == "automod.py"):
